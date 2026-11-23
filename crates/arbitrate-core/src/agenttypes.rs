@@ -5,6 +5,7 @@
 
 use crate::frontmatter;
 use std::collections::BTreeMap;
+use std::path::{Path, PathBuf};
 
 /// 定义来源标签。Config = 内置克隆携带 config agents 段路由覆盖。
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
@@ -243,4 +244,207 @@ impl Set {
             .filter(|d| d.origin != Origin::Builtin)
             .count()
     }
+}
+
+// ---- Load：作用域级联 ----
+
+/// config agents 段的一个条目：仅路由旋钮。tools/body/workflow 刻意缺席——
+/// config 只能重路由内置，不能重授权或重提示。
+#[derive(Debug, Clone, Default, PartialEq)]
+pub struct RouteOverride {
+    pub provider: String,
+    pub model: String,
+    /// "" | low | medium | high，Load 内校验。
+    pub effort: String,
+    /// >0 生效；<0 警告丢弃；0 忽略。
+    pub max_turns: i64,
+}
+
+/// Load 选项。测试一律注入两个目录，不走真实 home 默认分支。
+#[derive(Debug, Clone, Default)]
+pub struct LoadOptions {
+    /// None = "."（cwd）。
+    pub project_dir: Option<PathBuf>,
+    /// None = Paths::resolve().user_agents()（best-effort，home 不可得跳过用户槽）。
+    pub user_agents_dir: Option<PathBuf>,
+    pub config_agents: BTreeMap<String, RouteOverride>,
+}
+
+/// 启动诊断：每来源计数 + 非致命错误。坏文件绝不阻塞启动。
+#[derive(Debug, Default)]
+pub struct LoadStats {
+    pub by_source: BTreeMap<String, usize>,
+    pub errors: Vec<String>,
+}
+
+/// 四层级联：project .arbitrate/agents > 用户 agents > config 覆盖 > 内置。
+/// 无失败路径（目录读错误计入 stats.errors）。只读：不创建任何目录。
+pub fn load(opts: &LoadOptions) -> (Set, LoadStats) {
+    let mut stats = LoadStats::default();
+    let project_dir = opts
+        .project_dir
+        .clone()
+        .unwrap_or_else(|| PathBuf::from("."));
+    let user_agents_dir = match &opts.user_agents_dir {
+        Some(p) => Some(p.clone()),
+        None => crate::paths::Paths::resolve().ok().map(|p| p.user_agents()),
+    };
+    let mut set = Set::default();
+
+    let project_agents = project_dir.join(".arbitrate").join("agents");
+    let (n, errs) = load_from_dir(
+        &mut set,
+        &project_agents,
+        "project .arbitrate",
+        Origin::Project,
+    );
+    stats.by_source.insert("project .arbitrate".to_string(), n);
+    stats.errors.extend(errs);
+
+    if let Some(dir) = user_agents_dir {
+        let (n, errs) = load_from_dir(&mut set, &dir, "user ~/.arbitrate", Origin::User);
+        stats.by_source.insert("user ~/.arbitrate".to_string(), n);
+        stats.errors.extend(errs);
+    }
+
+    let applied = apply_config_overrides(&mut set, &opts.config_agents, &mut stats);
+    stats.by_source.insert("config agents".to_string(), applied);
+
+    let mut builtin_added = 0;
+    for def in builtins() {
+        if set.add(def) {
+            builtin_added += 1;
+        }
+    }
+    if builtin_added > 0 {
+        stats.by_source.insert("builtin".to_string(), builtin_added);
+    }
+    (set, stats)
+}
+
+/// 读一个作用域目录。缺失 = 常态（不报错、不创建）。文件名排序保证同目录冲突确定性。
+fn load_from_dir(set: &mut Set, dir: &Path, label: &str, origin: Origin) -> (usize, Vec<String>) {
+    let entries = match std::fs::read_dir(dir) {
+        Ok(e) => e,
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => return (0, Vec::new()),
+        Err(e) => {
+            return (
+                0,
+                vec![format!("agents: read {} ({label}): {e}", dir.display())],
+            );
+        }
+    };
+    let mut entries: Vec<_> = entries.filter_map(Result::ok).collect();
+    entries.sort_by_key(|e| e.file_name());
+    let mut added = 0;
+    let mut errs = Vec::new();
+    for e in entries {
+        let name = e.file_name();
+        let name = name.to_string_lossy();
+        if name.starts_with('.') {
+            continue;
+        }
+        let path = dir.join(&*name);
+        if e.file_type().map(|t| t.is_dir()).unwrap_or(false) {
+            errs.push(format!(
+                "agents: {}: subdirectory ignored (agent types are single .md files)",
+                path.display()
+            ));
+            continue;
+        }
+        let Some(stem) = name.strip_suffix(".md") else {
+            continue;
+        };
+        let data = match std::fs::read(&path) {
+            Ok(d) => d,
+            Err(e) => {
+                errs.push(format!("agents: {}: {e}", path.display()));
+                continue;
+            }
+        };
+        let mut def = match parse(&data, stem, &path.display().to_string()) {
+            Ok(d) => d,
+            Err(e) => {
+                errs.push(format!("agents: {}: {e}", path.display()));
+                continue;
+            }
+        };
+        def.origin = origin;
+        let def_name = def.name.clone();
+        if set.add(def) {
+            added += 1;
+        } else if let Some(winner) = set.get(&def_name)
+            && winner.origin == origin
+        {
+            errs.push(format!(
+                "agents: {}: duplicate name {def_name:?} — shadows {} (sorted-filename order decides within a scope)",
+                path.display(),
+                winner.source
+            ));
+        }
+    }
+    (added, errs)
+}
+
+/// config 层：内置克隆 + 路由覆盖。键排序访问（BTreeMap），插入序确定性。
+fn apply_config_overrides(
+    set: &mut Set,
+    overrides: &BTreeMap<String, RouteOverride>,
+    stats: &mut LoadStats,
+) -> usize {
+    if overrides.is_empty() {
+        return 0;
+    }
+    let bs = builtins();
+    let mut applied = 0;
+    for (name, ov) in overrides {
+        let Some(base) = bs.iter().find(|b| &b.name == name) else {
+            if set.get(name).is_none() {
+                stats.errors.push(format!(
+                    "agents: config key {name:?} matches no built-in or file type — ignored"
+                ));
+            } else {
+                // 文件占用该名：config < files，败者留档。
+                set.add(Definition {
+                    name: name.clone(),
+                    source: format!("config:agents:{name}"),
+                    ..Definition::default()
+                });
+            }
+            continue;
+        };
+        let mut clone = base.clone();
+        if !ov.provider.is_empty() {
+            clone.provider = ov.provider.clone();
+        }
+        if !ov.model.is_empty() {
+            clone.model = ov.model.clone();
+        }
+        if !ov.effort.is_empty() {
+            if LEGAL_EFFORTS.contains(&ov.effort.as_str()) {
+                clone.effort = ov.effort.clone();
+            } else {
+                stats.errors.push(format!(
+                    "agents: config {name:?} effort {:?} — valid: low, medium, high; field ignored",
+                    ov.effort
+                ));
+            }
+        }
+        if ov.max_turns != 0 {
+            if ov.max_turns < 0 {
+                stats.errors.push(format!(
+                    "agents: config {name:?} max_turns {} — must be positive; field ignored",
+                    ov.max_turns
+                ));
+            } else {
+                clone.max_turns = ov.max_turns;
+            }
+        }
+        clone.origin = Origin::Config;
+        clone.source = format!("config:agents:{name}");
+        if set.add(clone) {
+            applied += 1;
+        }
+    }
+    applied
 }
