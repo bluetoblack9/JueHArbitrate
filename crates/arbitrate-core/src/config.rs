@@ -3,8 +3,12 @@
 //! key/base-url 解析优先级：provider 官方 env（非空）> config 文件 > 无。
 //! 持久化（load/save）在本模块后半（Task 3）。schema_version 独立编号（D2-3）。
 
+use crate::paths::{self, PathsError};
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
+use std::io::Write;
+use std::path::{Path, PathBuf};
+use std::sync::atomic::{AtomicU64, Ordering};
 
 /// 配置文件名。
 pub const FILENAME: &str = "config.json";
@@ -264,4 +268,175 @@ pub fn set_key(cfg: &mut Config, provider: &str, api_key: &str) {
         .entry(provider.to_string())
         .or_default()
         .api_key = api_key.to_string();
+}
+
+// ---- 持久化 ----
+
+#[derive(Debug)]
+pub enum ConfigError {
+    Home(PathsError),
+    Read {
+        path: PathBuf,
+        source: std::io::Error,
+    },
+    Parse {
+        path: PathBuf,
+        source: serde_json::Error,
+    },
+    UnsupportedSchemaVersion {
+        found: u32,
+    },
+    Write {
+        path: PathBuf,
+        source: std::io::Error,
+    },
+    Encode(serde_json::Error),
+}
+
+impl std::fmt::Display for ConfigError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::Home(e) => write!(f, "cannot resolve home: {e}"),
+            Self::Read { path, source } => write!(f, "read {}: {source}", path.display()),
+            Self::Parse { path, source } => write!(f, "parse {}: {source}", path.display()),
+            Self::UnsupportedSchemaVersion { found } => write!(
+                f,
+                "unsupported config schema_version {found} (current {SCHEMA_VERSION})"
+            ),
+            Self::Write { path, source } => write!(f, "write {}: {source}", path.display()),
+            Self::Encode(e) => write!(f, "encode config: {e}"),
+        }
+    }
+}
+
+impl std::error::Error for ConfigError {}
+
+/// 配置文件路径：home()/config.json。
+pub fn path() -> Result<PathBuf, ConfigError> {
+    Ok(paths::home().map_err(ConfigError::Home)?.join(FILENAME))
+}
+
+/// 从指定路径加载。文件不存在 → 默认 Config；读/解析/schema 错误 → 报错。
+pub fn load_from(path: &Path) -> Result<Config, ConfigError> {
+    let data = match std::fs::read(path) {
+        Ok(d) => d,
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => return Ok(Config::default()),
+        Err(e) => {
+            return Err(ConfigError::Read {
+                path: path.to_path_buf(),
+                source: e,
+            });
+        }
+    };
+    let cfg: Config = serde_json::from_slice(&data).map_err(|e| ConfigError::Parse {
+        path: path.to_path_buf(),
+        source: e,
+    })?;
+    if cfg.schema_version != SCHEMA_VERSION {
+        return Err(ConfigError::UnsupportedSchemaVersion {
+            found: cfg.schema_version,
+        });
+    }
+    Ok(cfg)
+}
+
+/// 读真实环境的薄包装（不直接测试）。
+pub fn load() -> Result<Config, ConfigError> {
+    load_from(&path()?)
+}
+
+#[cfg(unix)]
+fn set_mode(path: &Path, mode: u32) -> Result<(), ConfigError> {
+    use std::os::unix::fs::PermissionsExt;
+    std::fs::set_permissions(path, std::fs::Permissions::from_mode(mode)).map_err(|e| {
+        ConfigError::Write {
+            path: path.to_path_buf(),
+            source: e,
+        }
+    })
+}
+
+#[cfg(not(unix))]
+fn set_mode(_path: &Path, _mode: u32) -> Result<(), ConfigError> {
+    Ok(())
+}
+
+static TMP_COUNTER: AtomicU64 = AtomicU64::new(0);
+
+/// 目标目录内唯一临时文件名：<文件名>.<pid>.<进程内计数器>.tmp。
+/// 每次保存独立，并发保存互不争用（D2-8）。
+fn tmp_path(path: &Path) -> PathBuf {
+    let n = TMP_COUNTER.fetch_add(1, Ordering::Relaxed);
+    let mut name = path.file_name().map(|s| s.to_owned()).unwrap_or_default();
+    name.push(format!(".{}.{}.tmp", std::process::id(), n));
+    path.with_file_name(name)
+}
+
+/// 保存到指定路径：父目录 0700、文件 0600（unix），唯一 tmp + rename 原子写。
+pub fn save_to(path: &Path, cfg: &Config) -> Result<(), ConfigError> {
+    if let Some(parent) = path.parent()
+        && !parent.as_os_str().is_empty()
+    {
+        std::fs::create_dir_all(parent).map_err(|e| ConfigError::Write {
+            path: parent.to_path_buf(),
+            source: e,
+        })?;
+        set_mode(parent, 0o700)?;
+    }
+    let mut data = serde_json::to_vec_pretty(cfg).map_err(ConfigError::Encode)?;
+    data.push(b'\n');
+    let mut opts = std::fs::OpenOptions::new();
+    opts.write(true).create_new(true);
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::OpenOptionsExt;
+        opts.mode(0o600);
+    }
+    // 排他创建；名字被占（PID 重用 + 上次异常退出残留）→ 换下一编号重试。
+    // 计数器单调递增，占用有限，必然终止。只清理本次成功创建的 tmp。
+    let tmp;
+    let mut file;
+    loop {
+        let candidate = tmp_path(path);
+        match opts.open(&candidate) {
+            Ok(f) => {
+                tmp = candidate;
+                file = f;
+                break;
+            }
+            Err(e) if e.kind() == std::io::ErrorKind::AlreadyExists => continue,
+            Err(e) => {
+                return Err(ConfigError::Write {
+                    path: candidate,
+                    source: e,
+                });
+            }
+        }
+    }
+    if let Err(e) = file.write_all(&data) {
+        drop(file);
+        let _ = std::fs::remove_file(&tmp);
+        return Err(ConfigError::Write {
+            path: tmp,
+            source: e,
+        });
+    }
+    drop(file);
+    if let Err(e) = set_mode(&tmp, 0o600) {
+        let _ = std::fs::remove_file(&tmp);
+        return Err(e);
+    }
+    if let Err(e) = std::fs::rename(&tmp, path) {
+        let _ = std::fs::remove_file(&tmp);
+        return Err(ConfigError::Write {
+            path: path.to_path_buf(),
+            source: e,
+        });
+    }
+    Ok(())
+}
+
+/// 读真实环境的薄包装（不直接测试）。
+pub fn save(cfg: &Config) -> Result<(), ConfigError> {
+    save_to(&path()?, cfg)
 }
