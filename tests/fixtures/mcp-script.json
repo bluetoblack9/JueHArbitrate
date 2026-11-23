@@ -1,0 +1,9 @@
+[
+  { "match_method": "initialize",
+    "respond": { "jsonrpc": "2.0", "result": { "protocolVersion": "2024-11-05", "capabilities": { "tools": {} }, "serverInfo": { "name": "mock-mcp", "version": "0.0.1" } } } },
+  { "match_method": "tools/list",
+    "respond": { "jsonrpc": "2.0", "result": { "tools": [
+      { "name": "echo", "description": "echo text", "inputSchema": { "type": "object", "properties": { "text": { "type": "string" } }, "required": ["text"] } },
+      { "name": "add", "description": "add numbers", "inputSchema": { "type": "object", "properties": { "a": { "type": "number" }, "b": { "type": "number" } }, "required": ["a", "b"] } }
+    ] } } }
+]
