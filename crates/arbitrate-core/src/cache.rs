@@ -36,7 +36,19 @@ struct Inner {
     extra_cost: f64,
     /// 收养的子代理 Tracker（Task 6 adopt_child）。
     children: Vec<Arc<Tracker>>,
+    /// set_base/set_base_locked 已调用——武装 adopt_child 的双计数守卫。
+    has_base: bool,
+    /// 已被某父收养（归属标记，D3-10）——被收养的 Tracker 不得再收养，
+    /// 也不得被第二个父收养。push 成功后才置位（panic 路径零状态变更）。
+    has_parent: bool,
 }
+
+/// 全局收养锁（D3-10）：串行化所有 adopt_child 的"检查+建立"，维持
+/// spawn 深度 1 的结构不变量。收养只在 spawn 时刻发生（冷路径），全局
+/// 串行代价可忽略；record/cumulative 热路径不取此锁。
+/// 中毒恢复：守卫 panic 是 bug 检测，panic 路径不改任何状态（归属标记
+/// push 成功后才写），恢复锁不影响不变量。
+static ADOPT_LOCK: Mutex<()> = Mutex::new(());
 
 /// 累积每轮 Usage+cost 记录并计算会话级聚合。Record/快照调用并发安全
 /// （Mutex 内部可变，&self 方法）。
@@ -70,6 +82,8 @@ impl Tracker {
                 base_cost: 0.0,
                 extra_cost: 0.0,
                 children: Vec::new(),
+                has_base: false,
+                has_parent: false,
             }),
         }
     }
@@ -85,6 +99,7 @@ impl Tracker {
         let mut g = self.inner.lock().unwrap();
         g.base_usage = u;
         g.base_cost = cost;
+        g.has_base = true;
     }
 
     /// 以**锁定的累计成本**恢复 base（arbitrate 自有契约扩展，D3-9）。
@@ -99,6 +114,7 @@ impl Tracker {
         let mut g = self.inner.lock().unwrap();
         g.base_usage = u;
         g.base_cost = locked_cost;
+        g.has_base = true;
     }
 
     /// 把所有已记录轮折叠进仅累计 base：cumulative()/cumulative_cost()
@@ -132,6 +148,85 @@ impl Tracker {
         let cost = pricing::cost(model, tier, &u);
         let mut g = self.inner.lock().unwrap();
         g.turns.push(TurnRecord { usage: u, cost });
+    }
+
+    /// 注册子代理 Tracker，使其 record() 调用滚入**本** Tracker 的
+    /// cumulative()/cumulative_cost()。child 继续独立接收自己的 record；
+    /// 收养只改变父的聚合表面。
+    ///
+    /// 多 child（并行子代理）加性聚合。同一 Arc 重复收养是 no-op（指针
+    /// 身份去重），spawn 重试路径可安全重调。自收养 no-op。
+    ///
+    /// 安全——不得收养 token 用量已折叠进本 Tracker base_usage 的 child
+    /// （从盘恢复的 child，其先前轮已计入父保存的累计）。预期调用方是
+    /// M4 subagent spawn 时刻：fresh child 构造上零用量。父 set_base/
+    /// set_base_locked 后（resume 会话），收养有任何已记录轮或自己
+    /// base_usage 的 child 会 **panic**——v0.6.0 G2 修复：bug 检测从
+    /// "非正式编排器契约"升级为双计数现场运行时检查。守卫 gated on
+    /// has_base：fresh（非 resume）父无重叠风险——收养已记录 child 良性
+    /// 即使结构上不寻常。
+    ///
+    /// 安全——spawn 深度 = 1（总纲约束 6），所有权不变量（D3-10，
+    /// arbitrate 自有硬化，上游同洞）：有 children 者不得被收养（上游
+    /// nested 守卫）；被收养者不得再收养（has_parent）；child 不得被
+    /// 第二父收养（归属唯一）。上游只查收养当下结构——先收养后嵌套、
+    /// 并发互收养（成环 → cumulative 无限递归）两个洞由 ADOPT_LOCK
+    /// 串行化"检查+建立" + has_parent 标记结构化关闭。agent 工具排除出
+    /// subagent 注册表仍是第一道线。
+    ///
+    /// 并发：全局收养锁串行化所有 adopt（spawn 冷路径，代价可忽略；
+    /// record/cumulative 热路径不取此锁）。三个顺序临界区 child 捕获 →
+    /// 父校验+push → child 归属标记，**任何时刻不持两把 inner 锁**。
+    /// "快照后释放"防死锁，不防守卫竞态——守卫一致性由 ADOPT_LOCK 提供。
+    /// ADOPT_LOCK 中毒恢复：panic 路径零状态变更（标记 push 后才写），
+    /// 恢复不破坏不变量。
+    pub fn adopt_child(self: &Arc<Self>, child: &Arc<Self>) {
+        if Arc::ptr_eq(self, child) {
+            return;
+        }
+        let _adopt = ADOPT_LOCK.lock().unwrap_or_else(|e| e.into_inner());
+        // 临界区 1：child 锁内捕获结构/用量/归属，释放后才取父锁。
+        let (nested, child_has_usage, child_owned) = {
+            let g = child.inner.lock().unwrap();
+            (
+                !g.children.is_empty(),
+                !g.turns.is_empty() || g.base_usage.total_tokens > 0,
+                g.has_parent,
+            )
+        };
+        if nested {
+            panic!(
+                "cache: AdoptChild on a Tracker that already has children — v5 forbids spawn depth > 1"
+            );
+        }
+        // 临界区 2：父锁内校验 + push。
+        let mut g = self.inner.lock().unwrap();
+        if g.has_parent {
+            panic!(
+                "cache: AdoptChild on a Tracker that is itself an adopted child — v5 forbids spawn depth > 1"
+            );
+        }
+        if g.children.iter().any(|c| Arc::ptr_eq(c, child)) {
+            return; // 幂等重收养（spawn 重试）：child 归属已是本父
+        }
+        if child_owned {
+            panic!(
+                "cache: AdoptChild on a Tracker already adopted by another parent — v5 children belong to one parent"
+            );
+        }
+        // G2 守卫：resume 父的 base_usage 已折叠每个先前会话 child 的
+        // 累计用量。此时收养自带先前用量的 child 会经 cumulative 的
+        // children 遍历双计数那些 token。指针去重先跑，record 后幂等
+        // 重收养（spawn 重试路径）仍 no-op。
+        if g.has_base && child_has_usage {
+            panic!(
+                "cache: AdoptChild on a non-fresh child after parent SetBase — double-count risk (parent's baseUsage already includes prior-session children)"
+            );
+        }
+        g.children.push(Arc::clone(child));
+        drop(g);
+        // 临界区 3：push 成功后才写归属标记（panic 路径零状态变更）。
+        child.inner.lock().unwrap().has_parent = true;
     }
 
     /// 所有已记录轮 + set_base 载入 base + 每个收养子代理 Tracker 的

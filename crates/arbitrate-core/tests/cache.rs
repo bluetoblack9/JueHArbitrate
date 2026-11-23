@@ -234,3 +234,309 @@ fn concurrent_record_safe() {
     assert_eq!(tr.cumulative().prompt_tokens, 100);
     assert_eq!(tr.cumulative().prompt_cache_hit_tokens, 100);
 }
+
+// ---- Task 6: 子代理收养与并发守卫 ----
+
+use std::sync::Arc;
+
+fn tracker_with(u: Usage) -> Arc<Tracker> {
+    let tr = Arc::new(Tracker::new());
+    tr.record(u, MODEL_V41_FLASH, Tier::Standard);
+    tr
+}
+
+#[test]
+fn adopt_aggregates_usage_and_cost() {
+    let parent = Arc::new(Tracker::new());
+    parent.record(usage(100, 20, 120, 80, 20), MODEL_V41_FLASH, Tier::Standard);
+    let parent_own_cost = parent.cumulative_cost();
+    let a = tracker_with(usage(200, 30, 230, 150, 50));
+    let b = tracker_with(usage(50, 10, 60, 0, 50));
+    let a_cost = a.cumulative_cost();
+    let b_cost = b.cumulative_cost();
+    parent.adopt_child(&a);
+    parent.adopt_child(&b);
+    let c = parent.cumulative();
+    assert_eq!(c.prompt_tokens, 350);
+    assert_eq!(c.completion_tokens, 60);
+    assert_eq!(c.prompt_cache_hit_tokens, 230);
+    assert_eq!(c.prompt_cache_miss_tokens, 120);
+    assert!((parent.cumulative_cost() - (parent_own_cost + a_cost + b_cost)).abs() < 1e-9);
+    // last 仍是父自己的最近轮，不含 children
+    assert_eq!(parent.last().prompt_tokens, 100);
+}
+
+#[test]
+fn adopt_idempotent() {
+    let parent = Arc::new(Tracker::new());
+    let child = tracker_with(usage(100, 0, 100, 0, 100));
+    parent.adopt_child(&child);
+    parent.adopt_child(&child);
+    parent.adopt_child(&child);
+    assert_eq!(parent.cumulative().prompt_tokens, 100);
+}
+
+#[test]
+fn adopt_self_noop() {
+    let parent = tracker_with(usage(10, 0, 10, 0, 10));
+    parent.adopt_child(&parent);
+    // 不无限递归，聚合正常
+    assert_eq!(parent.cumulative().prompt_tokens, 10);
+}
+
+#[test]
+#[should_panic(expected = "v5 forbids spawn depth > 1")]
+fn adopt_nested_panics() {
+    let parent = Arc::new(Tracker::new());
+    let child = Arc::new(Tracker::new());
+    let grand = tracker_with(usage(1, 0, 1, 0, 1));
+    child.adopt_child(&grand); // child 已有 children
+    parent.adopt_child(&child); // 嵌套收养 → panic
+}
+
+#[test]
+#[should_panic(expected = "double-count risk")]
+fn adopt_double_count_after_resume_panics() {
+    let parent = Arc::new(Tracker::new());
+    // resume base 已聚合先前会话 children 的累计
+    parent.set_base(
+        usage(900, 100, 1000, 800, 100),
+        MODEL_V41_FLASH,
+        Tier::Standard,
+    );
+    let child = tracker_with(usage(200, 0, 200, 0, 200)); // 有已记录轮
+    parent.adopt_child(&child); // → panic（G2 守卫，turns 分支）
+}
+
+#[test]
+#[should_panic(expected = "double-count risk")]
+fn adopt_double_count_covers_child_base() {
+    let parent = Arc::new(Tracker::new());
+    parent.set_base(
+        usage(900, 100, 1000, 800, 100),
+        MODEL_V41_FLASH,
+        Tier::Standard,
+    );
+    let child = Arc::new(Tracker::new());
+    child.set_base(usage(50, 0, 50, 0, 50), MODEL_V41_FLASH, Tier::Standard); // 无 record，但有自己的 base
+    parent.adopt_child(&child); // → panic（G2 守卫，child-base 分支）
+}
+
+#[test]
+fn adopt_fresh_child_after_resume_ok() {
+    let parent = Arc::new(Tracker::new());
+    parent.set_base(
+        usage(900, 100, 1000, 800, 100),
+        MODEL_V41_FLASH,
+        Tier::Standard,
+    );
+    let child = Arc::new(Tracker::new()); // fresh：零用量
+    parent.adopt_child(&child); // 不 panic
+    child.record(usage(50, 0, 50, 0, 50), MODEL_V41_FLASH, Tier::Standard);
+    assert_eq!(parent.cumulative().total_tokens, 1050);
+}
+
+#[test]
+fn adopt_nonfresh_without_resume_ok() {
+    // fresh 父无 has_base：收养已记录 child 良性（守卫 gated）
+    let parent = Arc::new(Tracker::new());
+    let child = tracker_with(usage(200, 0, 200, 0, 200));
+    parent.adopt_child(&child);
+    assert_eq!(parent.cumulative().prompt_tokens, 200);
+}
+
+#[test]
+fn seal_does_not_arm_guard() {
+    // seal 只折叠自己的轮，不置 has_base——合法收养流不被假 panic
+    let parent = Arc::new(Tracker::new());
+    parent.record(usage(100, 0, 100, 0, 100), MODEL_V41_FLASH, Tier::Standard);
+    parent.seal();
+    let child = tracker_with(usage(50, 0, 50, 0, 50));
+    parent.adopt_child(&child); // 不 panic
+    assert_eq!(parent.cumulative().total_tokens, 150);
+}
+
+#[test]
+#[should_panic(expected = "itself an adopted child")]
+fn adopt_then_nest_panics() {
+    // 反序洞（D3-10）：先收养后嵌套——上游两次检查都过形成深度 2，
+    // has_parent 归属标记拒绝：被收养的 child 不得再收养
+    let parent = Arc::new(Tracker::new());
+    let child = Arc::new(Tracker::new());
+    let grand = tracker_with(usage(1, 0, 1, 0, 1));
+    parent.adopt_child(&child); // 上游此处检查通过（洞）
+    child.adopt_child(&grand); // → panic（self 是已被收养的 child）
+}
+
+#[test]
+#[should_panic(expected = "already adopted by another parent")]
+fn adopt_already_owned_panics() {
+    // 归属唯一（D3-10）：child 属于一个父，第二父收养拒绝
+    let p1 = Arc::new(Tracker::new());
+    let p2 = Arc::new(Tracker::new());
+    let child = tracker_with(usage(100, 0, 100, 0, 100));
+    p1.adopt_child(&child);
+    p2.adopt_child(&child); // → panic
+}
+
+#[test]
+#[should_panic(expected = "double-count risk")]
+fn adopt_double_count_after_locked_restore_panics() {
+    // set_base_locked 武装与 set_base 相同的 G2 守卫（D3-9）
+    let parent = Arc::new(Tracker::new());
+    parent.set_base_locked(usage(900, 100, 1000, 800, 100), 0.42);
+    let child = tracker_with(usage(200, 0, 200, 0, 200));
+    parent.adopt_child(&child); // → panic
+}
+
+#[test]
+fn adopt_mutual_concurrent_rejected() {
+    // 并发互收养（D3-10）：全局收养锁下恰好一方成功，另一方 panic；无环。
+    // 上游同洞：双方捕获期都见对方无 children → 互 push 成环 → 无限递归。
+    use std::sync::Barrier;
+    let a = Arc::new(Tracker::new());
+    let b = Arc::new(Tracker::new());
+    let barrier = Arc::new(Barrier::new(2));
+    std::thread::scope(|s| {
+        let h1 = {
+            let a = Arc::clone(&a);
+            let b = Arc::clone(&b);
+            let barrier = Arc::clone(&barrier);
+            s.spawn(move || {
+                barrier.wait();
+                std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| a.adopt_child(&b)))
+            })
+        };
+        let h2 = {
+            let a = Arc::clone(&a);
+            let b = Arc::clone(&b);
+            let barrier = Arc::clone(&barrier);
+            s.spawn(move || {
+                barrier.wait();
+                std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| b.adopt_child(&a)))
+            })
+        };
+        let r1 = h1.join().unwrap();
+        let r2 = h2.join().unwrap();
+        assert!(
+            r1.is_ok() != r2.is_ok(),
+            "exactly one mutual adopt must succeed"
+        );
+    });
+    // 无环：聚合遍历终止（败方在 nested 捕获期 panic，不持 inner 锁，胜方未中毒）
+    let _ = a.cumulative();
+    let _ = b.cumulative();
+}
+
+#[test]
+fn adopt_concurrent_spawn() {
+    // 50 并行子代理：各自 record 后收养进父（spawn 风暴路径）
+    let parent = Arc::new(Tracker::new());
+    std::thread::scope(|s| {
+        for _ in 0..50 {
+            let parent = Arc::clone(&parent);
+            s.spawn(move || {
+                let child = Arc::new(Tracker::new());
+                child.record(usage(10, 0, 10, 5, 5), MODEL_V41_FLASH, Tier::Standard);
+                parent.adopt_child(&child);
+            });
+        }
+    });
+    assert_eq!(parent.cumulative().prompt_tokens, 500);
+    assert_eq!(parent.cumulative().prompt_cache_hit_tokens, 250);
+}
+
+/// 死锁工作负载：读者持续 cumulative + 200 收养者 + 500 父轮记录者并发。
+/// Barrier 启动同步 + done 完成计数 → 读者覆盖整个并发阶段；迭代上限
+/// 只是读者次级兜底（兜不住锁内阻塞——真正的死锁保护是父测试的子进程期限）。
+fn deadlock_workload() {
+    use std::sync::Barrier;
+    use std::sync::atomic::{AtomicUsize, Ordering};
+    let parent = Arc::new(Tracker::new());
+    let workers = 201; // 200 收养者 + 1 记录者
+    let barrier = Arc::new(Barrier::new(workers + 1)); // + 读者
+    let done = Arc::new(AtomicUsize::new(0));
+    std::thread::scope(|s| {
+        let reader = {
+            let parent = Arc::clone(&parent);
+            let barrier = Arc::clone(&barrier);
+            let done = Arc::clone(&done);
+            s.spawn(move || {
+                barrier.wait();
+                let mut iterations = 0u64;
+                while done.load(Ordering::Relaxed) < workers && iterations < 1_000_000 {
+                    let _ = parent.cumulative();
+                    let _ = parent.cumulative_cost();
+                    iterations += 1;
+                }
+            })
+        };
+        for _ in 0..200 {
+            let parent = Arc::clone(&parent);
+            let barrier = Arc::clone(&barrier);
+            let done = Arc::clone(&done);
+            s.spawn(move || {
+                barrier.wait();
+                let child = Arc::new(Tracker::new());
+                child.record(usage(1, 0, 1, 0, 1), MODEL_V41_FLASH, Tier::Standard);
+                parent.adopt_child(&child);
+                done.fetch_add(1, Ordering::Relaxed);
+            });
+        }
+        {
+            let parent = Arc::clone(&parent);
+            let barrier = Arc::clone(&barrier);
+            let done = Arc::clone(&done);
+            s.spawn(move || {
+                barrier.wait();
+                for _ in 0..500 {
+                    parent.record(usage(1, 0, 1, 0, 1), MODEL_V41_FLASH, Tier::Standard);
+                }
+                done.fetch_add(1, Ordering::Relaxed);
+            });
+        }
+        if let Err(e) = reader.join() {
+            std::panic::resume_unwind(e);
+        }
+    });
+    // 200 child × 1 + 500 父轮 = 700 prompt（scope 结束全部 join）
+    assert_eq!(parent.cumulative().prompt_tokens, 700);
+}
+
+#[test]
+fn adopt_concurrent_cumulative_no_deadlock() {
+    // 真正的死锁保护 = 子进程期限（D3-6）：线程内迭代上限只能兜成功返回
+    // 的循环，一旦 cumulative 阻塞在 Mutex 上计数便不再增长，join/scope
+    // 可永久等待。re-exec 自身测试二进制跑工作负载，父测试 try_wait 轮询
+    // + 30s deadline kill+reap——锁内阻塞被外部强制终止。
+    if std::env::var_os("ARBITRATE_CACHE_DEADLOCK_WORKLOAD").is_some() {
+        deadlock_workload();
+        return;
+    }
+    let exe = std::env::current_exe().unwrap();
+    let mut child = std::process::Command::new(exe)
+        .arg("--exact")
+        .arg("adopt_concurrent_cumulative_no_deadlock")
+        .env("ARBITRATE_CACHE_DEADLOCK_WORKLOAD", "1")
+        .stdout(std::process::Stdio::null())
+        .stderr(std::process::Stdio::null())
+        .spawn()
+        .expect("spawn test binary");
+    let deadline = std::time::Instant::now() + std::time::Duration::from_secs(30);
+    loop {
+        match child.try_wait().expect("try_wait") {
+            Some(status) => {
+                assert!(status.success(), "deadlock workload failed: {status}");
+                return;
+            }
+            None => {
+                if std::time::Instant::now() >= deadline {
+                    let _ = child.kill();
+                    let _ = child.wait();
+                    panic!("deadlock suspected: workload exceeded 30s deadline, killed");
+                }
+                std::thread::sleep(std::time::Duration::from_millis(50));
+            }
+        }
+    }
+}
