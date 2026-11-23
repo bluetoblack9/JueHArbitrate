@@ -1,0 +1,12 @@
+{"kind":"AgentStart","fields":{}}
+{"kind":"TurnStart","fields":{"index":0}}
+{"kind":"MessageDelta","fields":{"delta":"thinking…","reasoning":true}}
+{"kind":"MessageEnd","fields":{"has_tool_calls":true}}
+{"kind":"ToolExecStart","fields":{"call_id":"c1","name":"read","args":"{\"path\":\"a.txt\"}"}}
+{"kind":"ToolExecEnd","fields":{"call_id":"c1","name":"read","result":"file content","err":null}}
+{"kind":"TurnEnd","fields":{"index":0,"tool_calls":1}}
+{"kind":"TurnStart","fields":{"index":1}}
+{"kind":"MessageDelta","fields":{"delta":"done","reasoning":false}}
+{"kind":"MessageEnd","fields":{}}
+{"kind":"TurnEnd","fields":{"index":1,"tool_calls":0}}
+{"kind":"AgentEnd","fields":{"turns":2,"tool_calls":1}}

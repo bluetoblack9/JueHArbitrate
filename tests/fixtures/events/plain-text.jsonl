@@ -1,0 +1,8 @@
+{"kind":"AgentStart","fields":{}}
+{"kind":"TurnStart","fields":{"index":0}}
+{"kind":"MessageStart","fields":{}}
+{"kind":"MessageDelta","fields":{"delta":"Hello","reasoning":false}}
+{"kind":"MessageDelta","fields":{"delta":" world","reasoning":false}}
+{"kind":"MessageEnd","fields":{}}
+{"kind":"TurnEnd","fields":{"index":0,"tool_calls":0}}
+{"kind":"AgentEnd","fields":{"turns":1,"tool_calls":0}}

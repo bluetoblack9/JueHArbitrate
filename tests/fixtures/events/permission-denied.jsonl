@@ -1,0 +1,7 @@
+{"kind":"AgentStart","fields":{}}
+{"kind":"TurnStart","fields":{"index":0}}
+{"kind":"MessageEnd","fields":{"has_tool_calls":true}}
+{"kind":"ToolExecStart","fields":{"call_id":"c1","name":"bash","args":"{\"cmd\":\"rm x\"}"}}
+{"kind":"ToolExecEnd","fields":{"call_id":"c1","name":"bash","result":"permission denied: bash requires approval (Deny preference)","err":null}}
+{"kind":"TurnEnd","fields":{"index":0,"tool_calls":1}}
+{"kind":"AgentEnd","fields":{"turns":1,"tool_calls":1}}
