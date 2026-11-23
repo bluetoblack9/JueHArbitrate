@@ -1464,7 +1464,7 @@
       "aliases": ["ls"],
       "owner": "M4",
       "sources": [
-        "internal/worktreecli/worktreecli.go:Run:41-57 (list|ls:46-47)",
+        "internal/worktreecli/worktreecli.go:Run:41-57 (list|ls:48-49)",
         "internal/worktreecli/worktreecli.go:cmdList:81-115 (FlagSet:82, SetOutput:83)",
         "cmd/seek/main.go:run:906-908, main:774-791"
       ],
@@ -1508,7 +1508,7 @@
       "aliases": [],
       "owner": "M4",
       "sources": [
-        "internal/worktreecli/worktreecli.go:Run:41-57 (gc:48-49)",
+        "internal/worktreecli/worktreecli.go:Run:41-57 (gc:50-51)",
         "internal/worktreecli/worktreecli.go:cmdGC:122-171 (FlagSet:123, SetOutput:124)",
         "internal/worktree/worktree.go:DefaultOrphanAge:634 (168h = 7d)",
         "cmd/seek/main.go:run:906-908, main:774-791"
@@ -1558,7 +1558,7 @@
       "aliases": [],
       "owner": "M4",
       "sources": [
-        "internal/routinescli/routinescli.go:Run:71-95 (create:76-77)",
+        "internal/routinescli/routinescli.go:Run:71-95 (create:78-79)",
         "internal/routinescli/routinescli.go:cmdCreate:164-231 (FlagSet:165, SetOutput:166)",
         "internal/routinescli/routinescli.go:autoGenName:398-404",
         "cmd/seek/main.go:run:915-917, main:774-791"
@@ -1618,7 +1618,7 @@
       "aliases": ["ls"],
       "owner": "M4",
       "sources": [
-        "internal/routinescli/routinescli.go:Run:71-95 (list|ls:78-79)",
+        "internal/routinescli/routinescli.go:Run:71-95 (list|ls:80-81)",
         "internal/routinescli/routinescli.go:cmdList:236-282 (FlagSet:237, SetOutput:238)",
         "cmd/seek/main.go:run:915-917, main:774-791"
       ],
@@ -1629,7 +1629,7 @@
         "entries": [],
         "count_rule": "no NArg check (cmdList:236-282)",
         "extra_positionals": "ignored",
-        "notes": "JSON mode encodes even an empty list (253-258, before the empty check); text mode empty -> hint line (260-262)"
+        "notes": "JSON mode encodes the nil slice as `null` when no jobs exist (253-258, before the empty check); text mode empty -> hint line (260-262)"
       },
       "parsing": {
         "mechanism": "flag.FlagSet",
@@ -1655,7 +1655,7 @@
       "cases": [
         { "argv": ["cron", "list", "-h"], "preconditions": "none", "expect": "default usage stderr + 'seek: flag: help requested'", "exit_code": 1 },
         { "argv": ["cron", "list"], "preconditions": "no jobs registered", "expect": "stdout 'no cron jobs registered — try `seek cron create --at @daily ''check status''`'", "exit_code": 0 },
-        { "argv": ["cron", "list", "--json"], "preconditions": "no jobs registered", "expect": "stdout JSON '[]' (empty check skipped in JSON mode)", "exit_code": 0 },
+        { "argv": ["cron", "list", "--json"], "preconditions": "no jobs registered", "expect": "stdout JSON 'null' (empty check skipped in JSON mode)", "exit_code": 0 },
         { "argv": ["cron", "list"], "preconditions": "jobs registered", "expect": "stdout NAME/SCHEDULE/NEXT_RUN/LAST/RUNS/PROMPT table", "exit_code": 0 }
       ]
     },
@@ -1664,7 +1664,7 @@
       "aliases": ["rm"],
       "owner": "M4",
       "sources": [
-        "internal/routinescli/routinescli.go:Run:71-95 (delete|rm:80-81)",
+        "internal/routinescli/routinescli.go:Run:71-95 (delete|rm:82-83)",
         "internal/routinescli/routinescli.go:cmdDelete:287-307 (FlagSet:288, SetOutput:289)",
         "cmd/seek/main.go:run:915-917, main:774-791"
       ],
@@ -1710,7 +1710,7 @@
       "aliases": [],
       "owner": "M4",
       "sources": [
-        "internal/routinescli/routinescli.go:Run:71-95 (run:82-83)",
+        "internal/routinescli/routinescli.go:Run:71-95 (run:84-85)",
         "internal/routinescli/routinescli.go:cmdRun:313-353 (FlagSet:314, SetOutput:315)",
         "internal/routines/tick.go:DefaultRunTimeout:30 (30m)",
         "cmd/seek/main.go:run:915-917, main:774-791"
@@ -1759,7 +1759,7 @@
       "aliases": [],
       "owner": "M4",
       "sources": [
-        "internal/routinescli/routinescli.go:Run:71-95 (tick:84-85)",
+        "internal/routinescli/routinescli.go:Run:71-95 (tick:86-87)",
         "internal/routinescli/routinescli.go:cmdTick:359-396 (FlagSet:360, SetOutput:361)",
         "cmd/seek/main.go:run:915-917, main:774-791"
       ],
@@ -1806,7 +1806,7 @@
       "aliases": [],
       "owner": "M4",
       "sources": [
-        "internal/routinescli/routinescli.go:Run:71-95 (config:86-87)",
+        "internal/routinescli/routinescli.go:Run:71-95 (config:88-89)",
         "internal/routinescli/routinescli.go:cmdConfig:423-434 (hand-written sub-dispatch, default sub='check')",
         "internal/routinescli/routinescli.go:cmdConfigCheck:441-515 (FlagSet:442, SetOutput:443)",
         "cmd/seek/main.go:run:915-917, main:774-791"
@@ -1856,7 +1856,7 @@
       "aliases": [],
       "owner": "M5",
       "sources": [
-        "internal/keyscli/keyscli.go:Run:51-71 (list:56-57), ErrUsage:45",
+        "internal/keyscli/keyscli.go:Run:51-71 (list:57-58), ErrUsage:45",
         "internal/keyscli/keyscli.go:runList:73-107 (FlagSet:74, SetOutput:75)",
         "cmd/seek/main.go:run:924-932 (keyscli.ErrUsage -> os.Exit(2)), main:774-791"
       ],
@@ -1888,7 +1888,7 @@
       },
       "errors": {
         "unknown_flag": { "stream": "stderr", "exit_code": 2, "detail": "flag error + default usage stderr -> ErrUsage -> main os.Exit(2) (77-79, main.go:926-927)" },
-        "runtime_failure": { "stream": "stderr", "exit_code": 1, "detail": "non-ErrUsage errors (e.g. keymap load) returned -> main 'seek: ...' exit 1" }
+        "runtime_failure": { "stream": "stderr", "exit_code": 1, "detail": "non-ErrUsage errors returned (paths.UserKeybindings resolution:81-84, JSON encode:93-95) -> main 'seek: ...' exit 1" }
       },
       "cases": [
         { "argv": ["keys", "list", "-h"], "preconditions": "none", "expect": "default usage stderr, exit 2 (ErrUsage posture)", "exit_code": 2 },
@@ -1902,7 +1902,7 @@
       "aliases": [],
       "owner": "M5",
       "sources": [
-        "internal/keyscli/keyscli.go:Run:51-71 (check:58-59), ErrUsage:45",
+        "internal/keyscli/keyscli.go:Run:51-71 (check:59-60), ErrUsage:45",
         "internal/keyscli/keyscli.go:runCheck:109-130 (hand-written arg handling, no FlagSet)",
         "cmd/seek/main.go:run:924-932, main:774-791"
       ],
@@ -1946,7 +1946,7 @@
       "aliases": [],
       "owner": "M5",
       "sources": [
-        "internal/keyscli/keyscli.go:Run:51-71 (actions:60-61), ErrUsage:45",
+        "internal/keyscli/keyscli.go:Run:51-71 (actions:61-62), ErrUsage:45",
         "internal/keyscli/keyscli.go:runActions:132-160 (FlagSet:133)",
         "cmd/seek/main.go:run:924-932, main:774-791"
       ],

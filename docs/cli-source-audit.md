@@ -127,7 +127,7 @@ Shared: `resolveSession` 94-125 (`--session` > Latest; no-session error 109).
 | Site | Entry | Notes |
 |---|---|---|
 | routinescli.go:165 | cron create | 9 flags 167-175 (**--autopilot/--goal absent from printHelp**); mutual exclusion 179-181; prompt=join(fs.Args()) 185-188; auto name 197-199 + autoGenName 398-404; cwd→$HOME 204-209 |
-| routinescli.go:237 | cron list | json 239; JSON mode encodes empty list too 253-258; no NArg check |
+| routinescli.go:237 | cron list | json 239; JSON mode encodes the nil slice as `null` when no jobs exist 253-258; no NArg check |
 | routinescli.go:288 | cron delete | flagless FlagSet; NArg==1 293-295 |
 | routinescli.go:314 | cron run | timeout=DefaultRunTimeout=30m (tick.go:30) 316; NArg==1 320-322; failed job run is stdout status, exit 0 345-351; self-delete note 338-343 |
 | routinescli.go:360 | cron tick | verbose 362; quiet idle/skipped 378-389; no NArg check |
