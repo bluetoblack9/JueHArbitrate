@@ -1,0 +1,2415 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+<meta name="theme-color" content="#0b0b0e" />
+<meta name="description" content="seek — a DeepSeek-native terminal AI coding agent with subagent parallel workers, checkpoint undo/redo, and persistent memory. Single static binary, ~6 MB download, zero deps, open source (MIT)." />
+<meta property="og:title" content="seek — DeepSeek-native AI coding agent with subagent &amp; memory" />
+<meta property="og:description" content="A DeepSeek-native terminal AI coding agent. Subagent workers, checkpoint safety net, persistent memory. ~6 MB download, zero deps, open source (MIT)." />
+<meta property="og:type" content="website" />
+<meta property="og:url" content="https://github.com/whyiyhw/seek" />
+<meta property="og:image" content="https://opengraph.githubassets.com/1/github/whyiyhw/seek" />
+<meta name="twitter:card" content="summary_large_image" />
+<meta name="twitter:title" content="seek — DeepSeek-native AI coding agent with subagent &amp; memory" />
+<meta name="twitter:description" content="A DeepSeek-native terminal AI coding agent. Subagent workers, checkpoint safety net, persistent memory. ~6 MB download, open source (MIT)." />
+<title>seek — DeepSeek-native AI coding agent</title>
+<link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Ctext y='26' font-size='28' font-family='monospace' fill='%23f5a623'%3E▊%3C/text%3E%3C/svg%3E" />
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link rel="preload" as="style" href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:ital,wght@0,400;0,500;0,600;0,700;0,800;1,400&display=swap" />
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:ital,wght@0,400;0,500;0,600;0,700;0,800;1,400&display=swap" rel="stylesheet" />
+<style>
+  /* ============ RESET & BASE ============ */
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  html { scroll-behavior: smooth; font-size: 16px; -webkit-text-size-adjust: 100%; }
+  body {
+    font-family: var(--font-body);
+    background: var(--bg);
+    color: var(--text-body);
+    line-height: 1.6;
+    -webkit-font-smoothing: antialiased;
+    overflow-x: hidden;
+    position: relative;
+  }
+  a { color: inherit; text-decoration: none; }
+  img { max-width: 100%; display: block; }
+
+  /* ============ SCREEN READER ONLY ============ */
+  .sr-only {
+    position: absolute;
+    width: 1px; height: 1px;
+    padding: 0; margin: -1px;
+    overflow: hidden;
+    clip: rect(0,0,0,0);
+    white-space: nowrap;
+    border: 0;
+  }
+
+  /* ============ SKIP LINK (accessibility) ============ */
+  .skip-link {
+    position: fixed;
+    top: -100%;
+    left: 16px;
+    z-index: 10001;
+    background: var(--amber);
+    color: #0b0b0e;
+    padding: 10px 20px;
+    font-size: .85rem;
+    font-weight: 700;
+    border-radius: 0 0 4px 4px;
+    transition: top .25s ease;
+  }
+  .skip-link:focus {
+    top: 0;
+    outline: none;
+  }
+
+  /* ============ FOCUS VISIBLE ============ */
+  :focus-visible {
+    outline: 2px solid var(--amber);
+    outline-offset: 2px;
+  }
+  .btn:focus-visible,
+  .lang-toggle:focus-visible,
+  .install-option code:focus-visible,
+  .showcase-tab:focus-visible,
+  .carousel-nav button:focus-visible {
+    outline: 2px solid var(--teal);
+    outline-offset: 2px;
+  }
+
+  /* ============ CRT SCANLINE OVERLAY ============ */
+  body::after {
+    content: '';
+    position: fixed;
+    inset: 0;
+    pointer-events: none;
+    z-index: 9999;
+    background: repeating-linear-gradient(
+      0deg,
+      transparent,
+      transparent 1px,
+      rgba(0,0,0,.035) 1px,
+      rgba(0,0,0,.035) 2px
+    );
+  }
+
+  /* ============ COLOR ============ */
+  :root {
+    --bg:        #0b0b0e;
+    --surface:   #12121a;
+    --surface-2: #0e0e14;
+    --surface-3: #1a1a24;
+    --border:    #1e1e2a;
+    --text:      #d0d0d8;
+    --text-body: #d0d0d8;
+    --dim:       #8a8a98;
+    --amber:     #f5a623;
+    --amber-dim: rgba(245,166,35,.15);
+    --teal:      #00d4ff;
+    --teal-dim:  rgba(0,212,255,.12);
+    --green:     #22c55e;
+    --red:       #ff5f56;
+    --yellow:    #ffbd2e;
+    --hover-bg:  rgba(255,255,255,.04);
+    --border-dim: rgba(255,255,255,.04);
+    --font-display: "JetBrains Mono", "SF Mono", "Fira Code", "Courier New", monospace;
+    --font-body:    system-ui, -apple-system, "PingFang SC", "Microsoft YaHei", sans-serif;
+  }
+  [data-theme="light"] {
+    --bg:        #f7f3ec;
+    --surface:   #fdfcfa;
+    --surface-2: #efebe4;
+    --surface-3: #e3ded6;
+    --border:    #d9d3c9;
+    --text:      #1a1c23;
+    --text-body: #2a2c33;
+    --dim:       #635e58;
+    --amber:     #ba3d0a;
+    --amber-dim: rgba(186,61,10,.10);
+    --teal:      #1a7a7a;
+    --teal-dim:  rgba(26,122,122,.08);
+    --green:     #2d6a2d;
+    --red:       #b33a3a;
+    --yellow:    #a67c00;
+    --hover-bg:  rgba(0,0,0,.04);
+    --border-dim: rgba(0,0,0,.04);
+  }
+
+  /* ============ TYPOGRAPHY ============ */
+  h1, h2, h3, h4 { font-family: var(--font-display); font-weight: 700; letter-spacing: -.02em; line-height: 1.25; }
+  h1 { font-size: clamp(2rem, 7vw, 4.8rem); font-weight: 800; }
+  h2 { font-size: clamp(1.3rem, 3.5vw, 2.4rem); font-weight: 700; letter-spacing: -.01em; }
+  h3 { font-size: clamp(1rem, 2vw, 1.3rem); font-weight: 600; letter-spacing: -.01em; }
+  h4 { font-weight: 600; }
+  p  { max-width: 64ch; color: var(--dim); }
+  .text-amber { color: var(--amber); }
+  .text-teal  { color: var(--teal); }
+  .text-dim   { color: var(--dim); }
+
+  /* ============ UTILITY BAR (top-right) ============ */
+  .util-bar {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    flex-shrink: 0;
+  }
+  .theme-toggle {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 44px;
+    height: 44px;
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    background: transparent;
+    cursor: pointer;
+    font-size: .9rem;
+    transition: all .2s ease;
+    flex-shrink: 0;
+    color: var(--dim);
+  }
+  .theme-toggle:hover {
+    border-color: var(--amber);
+    color: var(--amber);
+  }
+  .theme-toggle .theme-icon {
+    display: block;
+    width: 18px;
+    height: 18px;
+  }
+
+  /* ============ INLINE SVG ICONS ============ */
+  .icon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    vertical-align: middle;
+  }
+  .icon svg {
+    width: 100%;
+    height: 100%;
+  }
+  .icon-sm  { width: 14px; height: 14px; }
+  .icon-md  { width: 18px; height: 18px; }
+  .icon-lg  { width: 22px; height: 22px; }
+  .icon-tab { width: 16px; height: 16px; margin-right: 5px; }
+  .icon-arrow { width: 14px; height: 14px; margin-left: 2px; }
+  .icon-inline { width: 1em; height: 1em; display: inline; vertical-align: -.1em; }
+
+  @media (prefers-reduced-motion: no-preference) {
+    body, .term-window, .diff-card, .feat-line, .install-option,
+    .price-wrap table, .cost-bar, .btn, .lang-toggle,
+    .theme-toggle, code, footer, section, .back-top {
+      transition: background-color .35s ease,
+                  border-color .35s ease,
+                  color .35s ease;
+    }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .section-frame { animation: none; }
+  }
+
+  /* ============ LANGUAGE TOGGLE ============ */
+  .lang-toggle {
+    display: inline-flex;
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    overflow: hidden;
+    font-family: "JetBrains Mono", monospace;
+    font-size: .78rem;
+    line-height: 1;
+    flex-shrink: 0;
+  }
+  .lang-toggle span {
+    padding: 16px 14px;
+    cursor: pointer;
+    transition: all .2s ease;
+    color: var(--dim);
+    user-select: none;
+  }
+  .lang-toggle span:focus-visible {
+    outline: 2px solid var(--teal);
+    outline-offset: -2px;
+  }
+  .lang-toggle span.active {
+    background: var(--teal);
+    color: #0b0b0e;
+    font-weight: 700;
+  }
+  .lang-toggle span:not(.active):hover {
+    color: var(--teal);
+  }
+
+  /* ============ LAYOUT ============ */
+  .container {
+    max-width: 1100px;
+    margin: 0 auto;
+    padding: 0 24px;
+    position: relative;
+    z-index: 1;
+  }
+  section {
+    padding: 60px 0;
+    position: relative;
+  }
+
+  /* ============ ANCHOR SCROLL OFFSET ============ */
+  section[id] {
+    scroll-margin-top: 80px;
+  }
+
+  /* ============ SECTION FRAME (terminal box-drawing) ============ */
+  .section-frame {
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 88px 32px 72px;
+    margin-bottom: 48px;
+    position: relative;
+    animation: frameIn .7s ease-out both;
+  }
+  .section-frame:nth-of-type(1) { animation-delay: .05s; }
+  .section-frame:nth-of-type(2) { animation-delay: .15s; }
+  .section-frame:nth-of-type(3) { animation-delay: .25s; }
+  .section-frame:nth-of-type(4) { animation-delay: .35s; }
+  .section-frame:nth-of-type(5) { animation-delay: .40s; }
+  .section-frame:nth-of-type(6) { animation-delay: .45s; }
+  @keyframes frameIn {
+    0%   { border-color: transparent; box-shadow: 0 0 0 transparent; }
+    100% { border-color: var(--border); box-shadow: 0 0 0 transparent; }
+  }
+  .section-frame::before {
+    content: "┌─ " attr(data-title) " ──┐";
+    position: absolute;
+    top: -0.7rem;
+    left: 28px;
+    background: var(--bg);
+    padding: 0 10px;
+    font-family: var(--font-display);
+    font-size: .72rem;
+    font-weight: 500;
+    color: var(--dim);
+    white-space: nowrap;
+    line-height: 1.4;
+    letter-spacing: .06em;
+  }
+  .section-frame::after {
+    content: "└──┘";
+    position: absolute;
+    bottom: -0.7rem;
+    left: 28px;
+    background: var(--bg);
+    padding: 0 10px;
+    font-family: var(--font-display);
+    font-size: .72rem;
+    color: var(--dim);
+    white-space: nowrap;
+    line-height: 1.4;
+  }
+  @media (max-width: 640px) {
+    .section-frame { padding: 68px 16px 56px; margin-bottom: 32px; }
+    .section-frame::before { left: 12px; }
+    .section-frame::after { left: 12px; }
+  }
+
+  /* ============ TERMINAL PROMPT LABEL ============ */
+  .label {
+    font-family: var(--font-display);
+    font-size: .8rem;
+    font-weight: 500;
+    color: var(--amber);
+    letter-spacing: .08em;
+    text-transform: uppercase;
+    margin-bottom: 12px;
+  }
+  .label::before { content: '$ '; }
+
+  .section-head { margin-bottom: 48px; }
+  @media (max-width: 640px) {
+    .section-head { margin-bottom: 32px; }
+  }
+  .section-head h2 { margin-bottom: 12px; }
+  .section-head p { font-size: 1.05rem; line-height: 1.55; }
+
+  /* ============ ASCII LOGO ============ */
+  /* Pixel-grid "SEEK" wordmark — drawn as real DOM cells on a 23×7 CSS
+     grid, NOT a <pre> of `█` glyphs. The old block-text banner sheared
+     into "98%" on mobile webviews with no monospace font: `█` (U+2588)
+     fell back to a CJK full-block glyph and line-height gaps split the
+     strokes into misaligned dot-soup (S→9, E E→8 8, K→%). Real grid cells
+     are uniform and perfectly aligned on every device, font-independent.
+     Source-of-truth pattern is the comment beside the markup. */
+  .pixel-logo {
+    display: grid;
+    grid-template-columns: repeat(23, 1fr);
+    grid-template-rows: repeat(7, 1fr);
+    /* Pixel-art (not LED): flat hard-edged squares + a uniform thin gutter
+       keep the retro pixel grid visible. The amber bloom below is an OUTER
+       glow on the whole word only — the pixels themselves stay flat and
+       square. What tips block-art into "LED display" is rounding, per-pixel
+       gradients/halos, or fused segment bars — NOT an outer bloom. */
+    gap: clamp(1.5px, .28vw, 3px);
+    width: min(560px, 88vw);
+    /* 23/9 (not 23/7) makes each cell ~1.3× taller than wide, so the
+       letters stand tall like the original monospace banner instead of
+       reading squat. The grid is still 23 cols × 7 rows. */
+    aspect-ratio: 23 / 9;
+    margin: 0 auto 24px;
+    filter: drop-shadow(0 0 9px rgba(245,166,35,.42))
+            drop-shadow(0 0 26px rgba(245,166,35,.20));
+  }
+  .pixel-logo > i {
+    background: var(--amber);
+  }
+  [data-theme="light"] .pixel-logo {
+    filter: drop-shadow(0 0 6px rgba(186,61,10,.16));
+  }
+  @keyframes logoIn {
+    0%   { opacity: 0; transform: scale(.9); filter: blur(5px); }
+    100% { opacity: 1; transform: scale(1);  filter: blur(0); }
+  }
+
+  /* Ripple effect */
+  .ripple {
+    position: absolute;
+    border-radius: 50%;
+    background: rgba(255,255,255,.15);
+    transform: scale(0);
+    animation: rippleAnim .5s ease-out;
+    pointer-events: none;
+  }
+  @keyframes rippleAnim {
+    to { transform: scale(4); opacity: 0; }
+  }
+
+  .btn-group {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 14px;
+    margin-top: 36px;
+  }
+  .btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    padding: 12px 28px;
+    font-family: "JetBrains Mono", monospace;
+    font-size: .85rem;
+    font-weight: 600;
+    border-radius: 4px;
+    transition: all .25s ease;
+    cursor: pointer;
+    border: none;
+    background: transparent;
+    position: relative;
+    min-height: 44px;
+    min-width: 44px;
+    overflow: hidden;
+  }
+  .btn-primary {
+    background: var(--teal);
+    color: #0b0b0e;
+    box-shadow: 0 0 20px var(--teal-dim);
+  }
+  .btn-primary:hover {
+    background: #33ddff;
+    box-shadow: 0 0 36px var(--teal-dim);
+    transform: translateY(-2px);
+  }
+  .btn-outline {
+    border: 1.5px solid var(--border);
+    color: var(--text);
+  }
+  .btn-outline:hover {
+    border-color: var(--text);
+    background: var(--hover-bg);
+    transform: translateY(-2px);
+  }
+  .btn .icon-arrow { transition: transform .2s; }
+  .btn:hover .icon-arrow { transform: translateX(3px); }
+  .btn:active { transform: translateY(0) scale(.97); }
+
+  @keyframes fadeUp {
+    0%   { opacity: 0; transform: translateY(18px); }
+    100% { opacity: 1; transform: translateY(0); }
+  }
+
+  /* ============ BACK TO TOP ============ */
+  .back-top {
+    position: fixed;
+    bottom: 28px;
+    right: 24px;
+    z-index: 100;
+    width: 44px;
+    height: 44px;
+    border-radius: 6px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    color: var(--dim);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    transition: all .3s ease;
+    opacity: 0;
+    pointer-events: none;
+    transform: translateY(12px);
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+  }
+  .back-top.show {
+    opacity: 1;
+    pointer-events: auto;
+    transform: translateY(0);
+  }
+  .back-top:hover {
+    border-color: var(--amber);
+    color: var(--amber);
+    transform: translateY(-3px);
+  }
+  .back-top svg { width: 18px; height: 18px; }
+
+  /* ============ DIFFERENTIATORS (asymmetric grid) ============ */
+  /* ============ STATS BAND ============ */
+  .stats-band {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 16px;
+  }
+  .stat-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 22px 18px;
+    text-align: center;
+    transition: all .3s ease;
+    position: relative;
+    overflow: hidden;
+  }
+  .stat-card::before {
+    content: '';
+    position: absolute;
+    top: 0; left: 0;
+    width: 100%; height: 2px;
+    background: var(--amber);
+    opacity: 0;
+    transition: opacity .3s;
+  }
+  .stat-card:hover::before { opacity: 1; }
+  .stat-card:hover {
+    border-color: var(--amber);
+    transform: translateY(-2px);
+    box-shadow: 0 6px 24px rgba(0,0,0,.4), 0 0 16px var(--amber-dim);
+  }
+  .stat-card .stat-num {
+    font-family: var(--font-display);
+    font-size: 1.5rem;
+    font-weight: 800;
+    color: var(--teal);
+    line-height: 1.1;
+    margin-bottom: 4px;
+  }
+  .stat-card .stat-label {
+    font-size: .78rem;
+    font-weight: 600;
+    color: var(--text);
+    margin-bottom: 4px;
+  }
+  .stat-card .stat-desc {
+    font-size: .75rem;
+    color: var(--dim);
+    line-height: 1.4;
+  }
+  @media (max-width: 768px) {
+    .stats-band { grid-template-columns: repeat(2, 1fr); }
+  }
+  @media (max-width: 480px) {
+    .stats-band { grid-template-columns: 1fr; }
+  }
+
+  /* Why-different 3-pillar grid — same card aesthetic as .stat-card,
+     left-aligned for prose, larger icon. */
+  .pillar-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 16px;
+  }
+  .pillar-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 24px 22px;
+    transition: all .3s ease;
+    position: relative;
+    overflow: hidden;
+  }
+  .pillar-card::before {
+    content: '';
+    position: absolute;
+    top: 0; left: 0;
+    width: 100%; height: 2px;
+    background: var(--amber);
+    opacity: 0;
+    transition: opacity .3s;
+  }
+  .pillar-card:hover::before { opacity: 1; }
+  .pillar-card:hover {
+    border-color: var(--amber);
+    transform: translateY(-2px);
+    box-shadow: 0 6px 24px rgba(0,0,0,.4), 0 0 16px var(--amber-dim);
+  }
+  .pillar-card .pillar-icon { color: var(--amber); line-height: 0; }
+  .pillar-card .pillar-icon svg { width: 30px; height: 30px; }
+  .pillar-card .pillar-title {
+    font-family: var(--font-display);
+    font-size: 1.05rem;
+    font-weight: 700;
+    color: var(--text);
+    margin: 12px 0 8px;
+  }
+  .pillar-card .pillar-desc {
+    font-size: .82rem;
+    color: var(--dim);
+    line-height: 1.6;
+  }
+  .pillar-card .pillar-desc code {
+    font-size: .76rem;
+    color: var(--amber);
+    background: none;
+  }
+  @media (max-width: 768px) {
+    .pillar-grid { grid-template-columns: 1fr; }
+  }
+
+  .diff-grid {
+    display: grid;
+    grid-template-columns: 1fr 1.3fr;
+    gap: 24px;
+    align-items: start;
+  }
+  .diff-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 32px 28px;
+    transition: all .3s ease;
+    position: relative;
+    overflow: hidden;
+  }
+  .diff-card::before {
+    content: '';
+    position: absolute;
+    top: 0; left: 0;
+    width: 3px; height: 100%;
+    background: var(--amber);
+    opacity: 0;
+    transition: opacity .3s;
+  }
+  .diff-card:hover::before { opacity: 1; }
+  .diff-card:hover {
+    border-color: var(--amber);
+    transform: translateY(-3px);
+    box-shadow: 0 8px 32px rgba(0,0,0,.5), 0 0 24px var(--amber-dim);
+  }
+  .diff-card .metric {
+    font-size: 2rem;
+    font-weight: 800;
+    color: var(--teal);
+    line-height: 1.1;
+    margin-bottom: 6px;
+  }
+  .diff-card .metric-label {
+    font-size: .85rem;
+    color: var(--dim);
+    margin-bottom: 10px;
+  }
+  .diff-card p { font-size: .88rem; color: var(--dim); }
+
+  /* Terminal window frame */
+  .term-window {
+    background: var(--surface-2);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    overflow: hidden;
+    font-size: .82rem;
+    line-height: 1.5;
+    font-family: "JetBrains Mono", monospace;
+    transition: border-color .3s;
+  }
+  .term-window:hover { border-color: var(--amber); }
+  .term-titlebar {
+    background: var(--surface-3);
+    padding: 10px 14px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    border-bottom: 1px solid var(--border);
+    user-select: none;
+  }
+  .term-dots { display: flex; gap: 6px; flex-shrink: 0; }
+  .term-dot {
+    width: 10px; height: 10px;
+    border-radius: 50%;
+    transition: opacity .2s;
+  }
+  .term-dot:hover { opacity: .7; }
+  .term-dot.red    { background: var(--red); }
+  .term-dot.yellow { background: var(--yellow); }
+  .term-dot.green  { background: var(--green); }
+  .term-title {
+    font-size: .72rem;
+    color: var(--dim);
+    flex: 1;
+    text-align: center;
+    letter-spacing: .02em;
+  }
+  .term-body {
+    padding: 18px 20px;
+    white-space: pre;
+    overflow-x: auto;
+  }
+  .term-body .highlight     { color: var(--amber); font-weight: 600; }
+  .term-body .highlight-teal { color: var(--teal); }
+
+  /* Typing cursor */
+  .typing-cursor {
+    display: inline;
+    color: var(--teal);
+    font-size: .9em;
+  }
+  .typing-cursor.blink {
+    animation: blink 1s step-end infinite;
+  }
+  .typing-cursor.done {
+    animation: none;
+    opacity: 0;
+  }
+  #term-output {
+    white-space: pre-wrap;
+    overflow-wrap: break-word;
+  }
+  .term-out-line {
+    display: block;
+    min-height: 1.2em;
+  }
+  .term-out-line.dim  { color: var(--dim); }
+  .term-out-line.teal { color: var(--teal); }
+  .term-out-line.prompt { color: var(--dim); }
+  .term-out-line .hl  { color: var(--amber); font-weight: 600; }
+  .term-out-line .ht  { color: var(--teal); }
+  .tool-spinner { color: var(--amber); display: inline-block; width: 1.2em; }
+
+  .diff-card.feature-list { padding: 24px 28px; }
+  .diff-card.feature-list li {
+    list-style: none;
+    padding: 10px 0;
+    border-bottom: 1px solid var(--border-dim);
+    font-size: .88rem;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+  .diff-card.feature-list li:last-child { border-bottom: none; }
+  .diff-card.feature-list .check { color: var(--amber); flex-shrink: 0; }
+  .diff-card.feature-list .label-sm { color: var(--dim); font-size: .75rem; }
+
+  /* ============ FEATURE SHOWCASE TABS ============ */
+  .showcase-term {
+    max-width: 840px;
+    margin: 0 auto;
+  }
+  .showcase-term .term-body {
+    min-height: 280px;
+    font-size: .82rem;
+  }
+  .showcase-tabs {
+    display: flex;
+    gap: 0;
+    border-bottom: 1px solid var(--border);
+    background: var(--surface-3);
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+  .showcase-tab {
+    padding: 15px 18px;
+    font-family: var(--font-display);
+    font-size: .72rem;
+    font-weight: 600;
+    color: var(--dim);
+    background: transparent;
+    border: none;
+    border-bottom: 2px solid transparent;
+    cursor: pointer;
+    white-space: nowrap;
+    transition: all .2s ease;
+    letter-spacing: .03em;
+  }
+  .showcase-tab:hover {
+    color: var(--text);
+    background: var(--hover-bg);
+  }
+  .showcase-tab.active {
+    color: var(--teal);
+    border-bottom-color: var(--teal);
+    background: var(--surface);
+  }
+  .showcase-tab .icon-tab {
+    margin-right: 5px;
+  }
+  @media (max-width: 600px) {
+    .showcase-tab { padding: 13px 12px; font-size: .68rem; }
+    .showcase-term .term-body { min-height: 220px; font-size: .74rem; }
+  }
+
+  /* ============ CAPABILITY CAROUSEL ============ */
+  .carousel-wrap {
+    position: relative;
+    max-width: 100%;
+  }
+  .carousel-track {
+    display: flex;
+    gap: 16px;
+    overflow-x: auto;
+    scroll-snap-type: x mandatory;
+    scroll-behavior: smooth;
+    -webkit-overflow-scrolling: touch;
+    padding: 4px 0 16px;
+    scrollbar-width: thin;
+    scrollbar-color: var(--border) transparent;
+  }
+  .carousel-track::-webkit-scrollbar { height: 6px; }
+  .carousel-track::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+  .carousel-track::-webkit-scrollbar-track { background: transparent; }
+
+  .carousel-card {
+    flex: 0 0 260px;
+    scroll-snap-align: start;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 18px 16px;
+    transition: all .3s ease;
+  }
+  .carousel-card:hover {
+    border-color: var(--amber);
+    transform: translateY(-2px);
+    box-shadow: 0 4px 16px rgba(0,0,0,.3);
+  }
+  .carousel-card .card-term {
+    background: var(--surface-2);
+    border: 1px solid var(--border-dim);
+    border-radius: 4px;
+    padding: 10px 12px;
+    font-family: var(--font-display);
+    font-size: .75rem;
+    color: var(--text);
+    line-height: 1.5;
+    margin-bottom: 10px;
+    white-space: pre-wrap;
+    overflow: hidden;
+  }
+  .carousel-card .card-term .c-prompt { color: var(--amber); }
+  .carousel-card .card-term .c-out { color: var(--dim); }
+  .carousel-card .card-term .c-teal { color: var(--teal); }
+  .carousel-card .card-name {
+    font-family: var(--font-display);
+    font-size: .78rem;
+    font-weight: 700;
+    color: var(--text);
+    margin-bottom: 4px;
+  }
+  .carousel-card .card-desc {
+    font-size: .75rem;
+    color: var(--dim);
+    line-height: 1.4;
+  }
+  .carousel-nav {
+    display: flex;
+    justify-content: center;
+    gap: 8px;
+    margin-top: 12px;
+  }
+  .carousel-nav button {
+    width: 40px; height: 40px;
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    background: var(--surface);
+    color: var(--dim);
+    cursor: pointer;
+    font-size: .9rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all .2s;
+  }
+  .carousel-nav button:hover {
+    border-color: var(--amber);
+    color: var(--amber);
+  }
+  @media (max-width: 640px) {
+    .carousel-card { flex: 0 0 220px; padding: 14px 12px; }
+    .carousel-card .card-term { font-size: .72rem; }
+  }
+
+  /* ============ TIMELINE (git log style) ============ */
+  .timeline {
+    font-family: var(--font-display);
+    font-size: .78rem;
+    line-height: 1.8;
+    color: var(--dim);
+    max-width: 700px;
+    margin: 0 auto;
+  }
+  .timeline .tl-commit {
+    color: var(--amber);
+    font-weight: 700;
+    margin-right: 6px;
+  }
+  .timeline .tl-date {
+    color: var(--dim);
+    margin-right: 8px;
+  }
+  .timeline .tl-tag {
+    color: var(--teal);
+    font-weight: 600;
+  }
+  .timeline .tl-msg {
+    color: var(--text);
+  }
+  .timeline .tl-highlight {
+    background: var(--amber-dim);
+    color: var(--amber);
+    padding: 0 4px;
+    border-radius: 2px;
+    font-weight: 600;
+  }
+  @media (max-width: 600px) {
+    .timeline { font-size: .75rem; }
+  }
+
+  @media (max-width: 800px) {
+    .diff-grid { grid-template-columns: 1fr; }
+  }
+
+  /* ============ PRICING HERO METRIC BAR ============ */
+  .price-hero {
+    display: flex;
+    align-items: stretch;
+    gap: 0;
+    margin: 32px 0 28px;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    overflow: hidden;
+    background: var(--surface);
+  }
+  .price-hero-stat {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 20px 16px;
+    text-align: center;
+    gap: 4px;
+  }
+  .price-hero-num {
+    font-family: var(--font-display);
+    font-size: clamp(1.4rem, 2.5vw, 2rem);
+    font-weight: 800;
+    color: var(--amber);
+    line-height: 1.1;
+    letter-spacing: -.02em;
+  }
+  .price-hero-num--sm {
+    font-size: clamp(1rem, 1.8vw, 1.4rem);
+  }
+  .price-hero-label {
+    font-size: .72rem;
+    color: var(--dim);
+    line-height: 1.3;
+  }
+  .price-hero:hover {
+    border-color: var(--amber);
+    box-shadow: 0 0 24px var(--amber-dim);
+  }
+  .price-hero-divider {
+    width: 1px;
+    background: var(--border);
+    flex-shrink: 0;
+  }
+  @media (max-width: 640px) {
+    .price-hero { flex-direction: column; }
+    .price-hero-divider { width: auto; height: 1px; }
+    .price-hero-stat { padding: 14px 12px; }
+  }
+
+  /* ============ PRICING TABLE ============ */
+  .price-wrap {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    overflow-x: auto;
+    margin-top: 12px;
+    -webkit-overflow-scrolling: touch;
+  }
+  .price-wrap table {
+    width: 100%;
+    min-width: 520px;
+    border-collapse: collapse;
+    font-size: .82rem;
+  }
+  .price-wrap th {
+    background: var(--surface-3);
+    color: var(--amber);
+    text-align: left;
+    padding: 14px 16px;
+    border-bottom: 2px solid var(--border);
+    text-transform: uppercase;
+    letter-spacing: .06em;
+    font-size: .72rem;
+  }
+  .price-wrap td {
+    padding: 14px 16px;
+    border-bottom: 1px solid var(--border);
+  }
+  .price-wrap tr:last-child td { border-bottom: none; }
+  .price-wrap tr:hover td { background: rgba(0,212,255,.03); }
+  .price-highlight td { color: var(--teal); font-weight: 700; }
+  .price-note {
+    margin-top: 20px;
+    font-size: .82rem;
+    color: var(--dim);
+  }
+  .price-note .dot {
+    display: inline-block;
+    width: 8px; height: 8px;
+    background: var(--green);
+    border-radius: 50%;
+    margin-right: 6px;
+    animation: pulse 2s ease-in-out infinite;
+  }
+  @keyframes pulse { 50% { opacity: .4; } }
+
+  /* ============ COST VISUALIZATION BARS ============ */
+  .cost-bars {
+    margin-top: 32px;
+    padding: 24px 28px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+  }
+  .cost-bars h3 {
+    font-size: .85rem;
+    margin-bottom: 20px;
+    color: var(--text);
+  }
+  .cost-bar-row {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    margin-bottom: 14px;
+  }
+  .cost-bar-row:last-child { margin-bottom: 0; }
+  .cost-bar-label {
+    width: 130px;
+    flex-shrink: 0;
+    font-size: .75rem;
+    color: var(--text);
+    text-align: right;
+  }
+  .cost-bar-track {
+    flex: 1;
+    height: 20px;
+    background: var(--surface-3);
+    border-radius: 3px;
+    position: relative;
+    overflow: hidden;
+  }
+  .cost-bar-fill {
+    height: 100%;
+    border-radius: 3px;
+    transition: width 1s ease;
+    position: relative;
+  }
+  .cost-bar-fill.amber {
+    background: var(--amber);
+    box-shadow: 0 0 8px var(--amber-dim);
+    width: 0%;
+  }
+  .cost-bar-fill.teal {
+    background: var(--teal);
+    box-shadow: 0 0 8px var(--teal-dim);
+    width: 0%;
+  }
+  .cost-bar-fill.claude {
+    background: #6b4fbb;
+    box-shadow: 0 0 8px rgba(107,79,187,.3);
+    width: 0%;
+  }
+  .cost-bar-fill .val {
+    position: absolute;
+    right: 8px;
+    top: 50%;
+    transform: translateY(-50%);
+    font-size: .65rem;
+    font-weight: 700;
+    color: #0b0b0e;
+    white-space: nowrap;
+  }
+  .cost-bar-fill.claude .val { color: #fff; }
+  .cost-bar-desc {
+    font-size: .65rem;
+    color: var(--dim);
+    margin-top: 10px;
+    text-align: center;
+    font-style: italic;
+  }
+  .cost-bars.reveal .cost-bar-fill.amber  { width: 1.2%; }
+  .cost-bars.reveal .cost-bar-fill.teal   { width: 1.6%; }
+  .cost-bars.reveal .cost-bar-fill.claude { width: 100%; }
+
+  /* ============ FEATURES (terminal module list) ============ */
+  .feat-grid {
+    display: flex;
+    gap: 18px;
+    margin-top: 8px;
+    align-items: stretch;
+  }
+  .feat-col {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+    min-width: 0;
+  }
+  .feat-line {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 7px 10px;
+    border-radius: 3px;
+    font-family: var(--font-display);
+    font-size: .76rem;
+    line-height: 1.35;
+    transition: background .12s;
+    cursor: default;
+    min-height: 32px;
+  }
+  .feat-line:hover {
+    background: var(--hover-bg);
+  }
+  .feat-line:active {
+    background: var(--amber-dim);
+  }
+  .feat-status {
+    color: var(--amber);
+    flex-shrink: 0;
+    font-size: .6rem;
+    opacity: .8;
+  }
+  .feat-name {
+    color: var(--teal);
+    font-weight: 600;
+    flex-shrink: 0;
+    white-space: nowrap;
+  }
+  .feat-desc {
+    color: var(--dim);
+    flex: 1;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    min-width: 0;
+  }
+  .feat-badge {
+    color: var(--green);
+    font-size: .6rem;
+    flex-shrink: 0;
+    font-weight: 500;
+    opacity: .8;
+  }
+  @media (max-width: 800px) {
+    .feat-grid { flex-direction: column; gap: 0; }
+  }
+
+  /* ============ INSTALL SECTION ============ */
+  .install-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 20px;
+  }
+  .install-option {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 24px;
+    transition: border-color .25s;
+    min-width: 0; /* let the grid track shrink instead of blowing out from long URLs in <code> */
+  }
+  .install-option:hover { border-color: var(--amber); }
+  .install-option h4 { font-size: .9rem; margin-bottom: 4px; }
+  .install-option .detail {
+    font-size: .8rem;
+    color: var(--dim);
+    margin-bottom: 14px;
+  }
+  .install-option code {
+    display: block;
+    background: var(--surface-2);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 12px 14px;
+    font-size: .78rem;
+    color: var(--teal);
+    overflow: hidden;
+    overflow-wrap: anywhere;
+    word-break: break-word;
+    cursor: pointer;
+    transition: border-color .2s;
+    min-height: 44px;
+    position: relative;
+  }
+  .install-option code:hover { border-color: var(--teal); }
+  .install-option code .prompt-inline { color: var(--amber); }
+  .install-option code::after {
+    content: "";
+    position: absolute;
+    right: 8px;
+    top: 8px;
+    transform: none;
+    width: 16px;
+    height: 16px;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%236a6a7a' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Crect x='9' y='9' width='13' height='13' rx='2' ry='2'/%3E%3Cpath d='M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1'/%3E%3C/svg%3E");
+    background-size: contain;
+    background-repeat: no-repeat;
+    opacity: .3;
+    transition: opacity .2s;
+    pointer-events: none;
+  }
+  .install-option code:hover::after { opacity: 1; }
+  .install-option code:active::after { opacity: 1; }
+
+  @media (max-width: 640px) {
+    .install-grid { grid-template-columns: 1fr; }
+    .install-option code::after { display: none; }
+  }
+
+  /* ============ FOOTER ============ */
+  footer {
+    border-top: 1px solid var(--border);
+    padding: 48px 0;
+    text-align: center;
+  }
+  footer p {
+    font-size: .8rem;
+    color: var(--dim);
+    margin: 0 auto 4px;
+  }
+  footer a { color: var(--teal); transition: color .2s; }
+  footer a:hover { color: var(--amber); }
+
+  /* ============ SCROLL REVEAL ============ */
+  .reveal {
+    opacity: 0;
+    transform: translateY(24px);
+    transition: opacity .7s ease, transform .7s ease;
+  }
+  .reveal.visible {
+    opacity: 1;
+    transform: translateY(0);
+  }
+
+  /* ============ MICRO DETAILS ============ */
+  ::selection {
+    background: var(--amber);
+    color: #0b0b0e;
+  }
+  /* Custom scrollbar — terminal vibe */
+  ::-webkit-scrollbar {
+    width: 10px;
+    height: 10px;
+  }
+  ::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  ::-webkit-scrollbar-thumb {
+    background: var(--border);
+    border-radius: 5px;
+    border: 2px solid var(--bg);
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    background: var(--dim);
+  }
+  /* Firefox scrollbar */
+  * {
+    scrollbar-width: thin;
+    scrollbar-color: var(--border) transparent;
+  }
+
+  /* ============ RESPONSIVE ============ */
+  @media (max-width: 640px) {
+    section { padding: 40px 0; }
+    section[id] { scroll-margin-top: 60px; }
+    .container { padding: 0 16px; }
+    .diff-card { padding: 20px 16px; }
+    .diff-card .metric { font-size: 1.6rem; }
+    .back-top { bottom: 16px; right: 12px; width: 44px; height: 44px; }
+    .cost-bar-label { width: 80px; font-size: .65rem; }
+    .price-wrap table { font-size: .72rem; }
+    .price-wrap th, .price-wrap td { padding: 10px 10px; }
+    .cost-bars { padding: 18px 16px; }
+    .term-body { padding: 14px 14px; font-size: .75rem; }
+    .install-option { padding: 16px; }
+    .feat-line { padding: 5px 8px; font-size: .7rem; }
+  }
+
+  /* ============ PRINT STYLES ============ */
+  @media print {
+    body { background: #fff; color: #111; }
+    body::after { display: none; }
+    .lang-toggle, .theme-toggle, .back-top, .skip-link { display: none !important; }
+    .pixel-logo { filter: none; }
+    .pixel-logo > i { background: #333; }
+    .btn-primary { background: #333; color: #fff; box-shadow: none; }
+    .price-wrap, .cost-bars, .diff-card, .feat-line, .install-option, .term-window {
+      background: #f5f5f5;
+      border-color: #ddd;
+      break-inside: avoid;
+    }
+    .section-head p, .diff-card p, .feat-desc { color: #555; }
+    section { padding: 30px 0; }
+    .section-frame { border-color: #ddd; background: #f5f5f5; }
+    .section-frame::before,
+    .section-frame::after { background: #f5f5f5 !important; color: #666; }
+    .price-hero { border-color: #ddd; background: #f5f5f5; }
+    .price-hero-divider { background: #ddd; }
+    .cost-bar-fill { print-color-adjust: exact; -webkit-print-color-adjust: exact; }
+    .term-dot { print-color-adjust: exact; -webkit-print-color-adjust: exact; }
+    .price-wrap th { background: #e8e8e8; color: #333; }
+    .price-wrap td { border-color: #ddd; }
+    .cost-bar-track { background: #e8e8e8; }
+    .price-note .dot { print-color-adjust: exact; -webkit-print-color-adjust: exact; }
+  }
+
+  /* ============ TERMINAL HERO ============ */
+  .terminal-hero {
+    min-height: 90vh;
+    min-height: 90dvh;
+    display: flex;
+    align-items: center;
+    padding: 40px 0;
+    position: relative;
+  }
+  .terminal-hero .container {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+  }
+  .terminal-hero::after {
+    content: '';
+    position: absolute;
+    bottom: 0; left: 50%;
+    transform: translateX(-50%);
+    width: 1px; height: 60px;
+    background: linear-gradient(to bottom, var(--amber), transparent);
+  }
+  .term-hero-window {
+    width: 780px;
+    height: 420px;
+    animation: logoIn 1.2s ease-out both;
+  }
+  .term-hero-window .term-body {
+    height: 340px;
+    overflow-y: auto;
+    scrollbar-width: none;
+    padding: 24px 28px;
+    font-size: .9rem;
+  }
+  .term-hero-window .term-body::-webkit-scrollbar { display: none; }
+  .terminal-hero .pixel-logo {
+    margin-bottom: 20px;
+  }
+
+  /* Status bar at the bottom of the terminal window */
+  .term-statusbar {
+    height: 28px;
+    border-top: 1px solid var(--border);
+    background: var(--surface-2);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0 14px;
+    font-size: .72rem;
+    color: var(--dim);
+    flex-shrink: 0;
+  }
+  .term-statusbar .status-right {
+    color: var(--teal);
+    opacity: 0.85;
+  }
+
+  .terminal-hero-tagline {
+    margin-top: 28px;
+    font-size: 1.1rem;
+    color: var(--dim);
+    text-align: center;
+    max-width: 64ch;
+  }
+  .terminal-hero-tagline strong {
+    color: var(--text);
+    font-weight: 600;
+  }
+  .terminal-hero-btns {
+    margin-top: 24px;
+  }
+
+  /* ============ DIFF GRID 3-COL ============ */
+  .diff-grid.diff-grid--three {
+    grid-template-columns: 1fr 1fr 1.2fr;
+  }
+  @media (max-width: 800px) {
+    .diff-grid.diff-grid--three { grid-template-columns: 1fr; }
+  }
+
+  @media (max-width: 640px) {
+    .terminal-hero {
+      min-height: auto;
+      padding: 32px 0 24px;
+    }
+    .term-hero-window {
+      width: 100%;
+      height: auto;
+    }
+    .term-hero-window .term-body {
+      height: 280px;
+      padding: 16px 16px;
+      font-size: .78rem;
+    }
+    .terminal-hero .pixel-logo {
+      width: min(560px, 90vw);
+      margin-bottom: 12px;
+    }
+    .terminal-hero-tagline {
+      font-size: .95rem;
+    }
+    .terminal-hero .btn-group {
+      flex-direction: column;
+      align-items: stretch;
+    }
+    .terminal-hero .btn {
+      justify-content: center;
+    }
+  }
+</style>
+<noscript>
+  <style>
+    .reveal { opacity: 1; transform: none; }
+    [data-lang] { display: none !important; }
+    [data-lang="en"] { display: initial !important; }
+    .lang-toggle { display: none !important; }
+  </style>
+</noscript>
+</head>
+<body>
+
+<a class="skip-link" href="#main-content">
+  <span data-lang="en">Skip to content</span>
+  <span data-lang="zh" hidden>跳转到内容</span>
+</a>
+
+<button class="back-top" id="backTop" aria-label="Back to top">
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M18 15l-6-6-6 6"/>
+  </svg>
+</button>
+
+<nav aria-label="Theme and language" style="display:flex;justify-content:flex-end;padding:12px 24px 0;max-width:1100px;margin:0 auto;">
+  <div class="util-bar">
+    <button class="theme-toggle" id="themeToggle" aria-label="Toggle theme">
+      <svg class="theme-icon icon-sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="18" height="18" aria-hidden="true">
+        <circle cx="12" cy="12" r="5"/>
+        <line x1="12" y1="1" x2="12" y2="3"/>
+        <line x1="12" y1="21" x2="12" y2="23"/>
+        <line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/>
+        <line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/>
+        <line x1="1" y1="12" x2="3" y2="12"/>
+        <line x1="21" y1="12" x2="23" y2="12"/>
+        <line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/>
+        <line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/>
+      </svg>
+      <svg class="theme-icon icon-moon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="18" height="18" aria-hidden="true" hidden>
+        <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/>
+      </svg>
+    </button>
+    <div class="lang-toggle" id="langToggle">
+      <span data-lang-val="en" tabindex="0" role="button">EN</span>
+      <span data-lang-val="zh" tabindex="0" role="button">中文</span>
+    </div>
+  </div>
+</nav>
+
+<!-- ============ TERMINAL HERO ============ -->
+<section class="terminal-hero" aria-label="seek demo">
+  <div class="container">
+    <h1 class="sr-only">
+      <span data-lang="en">seek — DeepSeek native AI coding agent</span>
+      <span data-lang="zh" hidden>seek — DeepSeek 原生 AI 编程助手</span>
+    </h1>
+    <!-- Pixel-grid "SEEK" wordmark. The lit-pixel <i> cells below are
+         generated from this 23×7 pattern (1 cell per `█`); if you change a
+         letter, regenerate the cells to match. Rendered as real CSS-grid
+         cells, NOT `█` glyphs, so it never depends on a mobile monospace
+         font — see .pixel-logo in <style>.
+           █████ █████ █████ █   █
+           █     █     █     █  █
+           █     █     █     █ █
+           ████  ████  ████  ██
+               █ █     █     █ █
+               █ █     █     █  █
+           █████ █████ █████ █   █  -->
+    <div class="pixel-logo reveal" role="img" aria-label="seek">
+      <i style="grid-area:1/1"></i><i style="grid-area:1/2"></i><i style="grid-area:1/3"></i><i style="grid-area:1/4"></i><i style="grid-area:1/5"></i><i style="grid-area:1/7"></i><i style="grid-area:1/8"></i><i style="grid-area:1/9"></i><i style="grid-area:1/10"></i><i style="grid-area:1/11"></i><i style="grid-area:1/13"></i><i style="grid-area:1/14"></i><i style="grid-area:1/15"></i><i style="grid-area:1/16"></i><i style="grid-area:1/17"></i><i style="grid-area:1/19"></i><i style="grid-area:1/23"></i>
+      <i style="grid-area:2/1"></i><i style="grid-area:2/7"></i><i style="grid-area:2/13"></i><i style="grid-area:2/19"></i><i style="grid-area:2/22"></i>
+      <i style="grid-area:3/1"></i><i style="grid-area:3/7"></i><i style="grid-area:3/13"></i><i style="grid-area:3/19"></i><i style="grid-area:3/21"></i>
+      <i style="grid-area:4/1"></i><i style="grid-area:4/2"></i><i style="grid-area:4/3"></i><i style="grid-area:4/4"></i><i style="grid-area:4/7"></i><i style="grid-area:4/8"></i><i style="grid-area:4/9"></i><i style="grid-area:4/10"></i><i style="grid-area:4/13"></i><i style="grid-area:4/14"></i><i style="grid-area:4/15"></i><i style="grid-area:4/16"></i><i style="grid-area:4/19"></i><i style="grid-area:4/20"></i>
+      <i style="grid-area:5/5"></i><i style="grid-area:5/7"></i><i style="grid-area:5/13"></i><i style="grid-area:5/19"></i><i style="grid-area:5/21"></i>
+      <i style="grid-area:6/5"></i><i style="grid-area:6/7"></i><i style="grid-area:6/13"></i><i style="grid-area:6/19"></i><i style="grid-area:6/22"></i>
+      <i style="grid-area:7/1"></i><i style="grid-area:7/2"></i><i style="grid-area:7/3"></i><i style="grid-area:7/4"></i><i style="grid-area:7/5"></i><i style="grid-area:7/7"></i><i style="grid-area:7/8"></i><i style="grid-area:7/9"></i><i style="grid-area:7/10"></i><i style="grid-area:7/11"></i><i style="grid-area:7/13"></i><i style="grid-area:7/14"></i><i style="grid-area:7/15"></i><i style="grid-area:7/16"></i><i style="grid-area:7/17"></i><i style="grid-area:7/19"></i><i style="grid-area:7/23"></i>
+    </div>
+    <div class="term-window term-hero-window" id="term-demo">
+      <div class="term-titlebar">
+        <div class="term-dots">
+          <div class="term-dot red"></div>
+          <div class="term-dot yellow"></div>
+          <div class="term-dot green"></div>
+        </div>
+        <div class="term-title">seek@agent:~/project</div>
+      </div>
+      <div class="term-body" id="term-body">
+        <div id="term-output"></div>
+        <span class="typing-cursor blink" id="typing-cursor">▊</span>
+      </div>
+      <div class="term-statusbar" id="term-statusbar">
+        <span class="status-left"></span>
+        <span class="status-right"></span>
+      </div>
+    </div>
+    <p class="terminal-hero-tagline reveal">
+      <span data-lang="en">Not an agent demo — a local agent platform that <strong>plans</strong>, <strong>spawns a team of sub-agents</strong>, and <strong>ships while you sleep</strong>. Open source, single static Go binary (<strong>~6 MB</strong> download), DeepSeek-native.</span>
+      <span data-lang="zh" hidden>不是又一个 agent demo——而是一个本地 agent 平台：会<strong>规划</strong>、能<strong>派出一队子代理</strong>、在你<strong>睡觉时把活干完</strong>。开源、单个静态 Go 二进制（<strong>~6 MB</strong> 下载）、DeepSeek 原生。</span>
+    </p>
+    <div style="display:flex;justify-content:center;margin-top:20px;">
+      <div class="btn-group terminal-hero-btns reveal">
+        <a class="btn btn-primary" href="#install">
+          <span data-lang="en">Install <span class="icon icon-arrow"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg></span></span>
+          <span data-lang="zh" hidden>安装 <span class="icon icon-arrow"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg></span></span>
+        </a>
+        <a class="btn btn-outline" href="docs/index.html">
+          <span data-lang="en">Docs <span class="icon icon-arrow"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18l6-6-6-6"/></svg></span></span>
+          <span data-lang="zh" hidden>文档 <span class="icon icon-arrow"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18l6-6-6-6"/></svg></span></span>
+        </a>
+        <a class="btn btn-outline" href="https://github.com/whyiyhw/seek" target="_blank" rel="noopener">
+          GitHub <span class="icon icon-arrow"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18l6-6-6-6"/></svg></span>
+        </a>
+      </div>
+    </div>
+  </div>
+</section>
+
+<main class="container" id="main-content">
+
+<!-- ============ WHY DIFFERENT (3 pillars) ============ -->
+<section class="section-frame" data-title="WHY SEEK">
+  <div class="section-head reveal">
+    <p class="label">
+      <span data-lang="en">why seek is different</span>
+      <span data-lang="zh" hidden>seek 与众不同之处</span>
+    </p>
+    <h2>
+      <span data-lang="en">Not an agent demo — a platform.</span>
+      <span data-lang="zh" hidden>不是 agent demo——是平台。</span>
+    </h2>
+    <p>
+      <span data-lang="en">Three claims in the tagline, each backed by shipping code.</span>
+      <span data-lang="zh" hidden>标语里的三句话，每句都有已落地的代码兜底。</span>
+    </p>
+  </div>
+
+  <div class="pillar-grid">
+    <div class="pillar-card reveal">
+      <div class="pillar-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><polygon points="16.24 7.76 14.12 14.12 7.76 16.24 9.88 9.88 16.24 7.76"/></svg></div>
+      <h3 class="pillar-title">
+        <span data-lang="en">Plans before it acts</span>
+        <span data-lang="zh" hidden>先规划，再动手</span>
+      </h3>
+      <div class="pillar-desc">
+        <span data-lang="en"><code>/plan</code> gates work behind <em>analyze → propose → you approve → execute</em>. Read-only until you approve a step-by-step list; push back mid-run and it re-plans <em>without redoing finished work</em>. State rebuilds from the transcript, so <code>seek -resume</code> picks up exactly where it left off.</span>
+        <span data-lang="zh" hidden><code>/plan</code> 把工作卡在 <em>分析 → 提方案 → 你批准 → 执行</em> 之后。批准前全程只读；执行中你可以中途插话，它会<em>在不重做已完成步骤的前提下</em>重新规划。状态从 transcript 重建，<code>seek -resume</code> 能精确续上原计划。</span>
+      </div>
+    </div>
+    <div class="pillar-card reveal" style="transition-delay:.1s">
+      <div class="pillar-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg></div>
+      <h3 class="pillar-title">
+        <span data-lang="en">Spawns a team of sub-agents</span>
+        <span data-lang="zh" hidden>派出一队子代理</span>
+      </h3>
+      <div class="pillar-desc">
+        <span data-lang="en">Fans a task out to sub-agents that run <em>in parallel, each isolated in its own git worktree</em> so they never collide. Permissions narrow monotonically; cost aggregates to the parent's status bar. Watch live with <code>/agents</code> · <code>/worktrees</code>.</span>
+        <span data-lang="zh" hidden>把任务扇出给子代理，<em>并行执行、各自隔离在独立 git worktree</em> 里，互不踩踏。权限单调收紧（子永远不松于父），成本自动累加到父 agent 状态栏。用 <code>/agents</code> · <code>/worktrees</code> 实时观察。</span>
+      </div>
+    </div>
+    <div class="pillar-card reveal" style="transition-delay:.2s">
+      <div class="pillar-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg></div>
+      <h3 class="pillar-title">
+        <span data-lang="en">Ships while you sleep</span>
+        <span data-lang="zh" hidden>你睡觉时把活干完</span>
+      </h3>
+      <div class="pillar-desc">
+        <span data-lang="en"><em>Zero-daemon</em> scheduling on your OS (launchd / systemd / Task Scheduler). <code>seek cron</code>, a model-scheduled <code>schedule_wakeup</code>, or a CI trigger file runs unattended, commits, and <em>pushes the result to your phone</em> (ntfy / Slack / Discord / any URL).</span>
+        <span data-lang="zh" hidden>借力操作系统的<em>零 daemon</em> 调度（launchd / systemd / 任务计划程序）。<code>seek cron</code>、模型自排的 <code>schedule_wakeup</code>、或一个 CI 触发文件，都能无人值守地跑完、提交，并把结果<em>推送到你手机</em>（ntfy / Slack / Discord / 任意 URL）。</span>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ STATS BAND ============ -->
+<section class="section-frame" data-title="AT A GLANCE">
+  <div class="section-head reveal">
+    <p class="label">
+      <span data-lang="en">at a glance</span>
+      <span data-lang="zh" hidden>概览</span>
+    </p>
+    <h2>
+      <span data-lang="en">Numbers that matter.</span>
+      <span data-lang="zh" hidden>数据说话。</span>
+    </h2>
+    <p>
+      <span data-lang="en">DeepSeek-native engineering — every design choice optimises for cost, speed, and reliability.</span>
+      <span data-lang="zh" hidden>DeepSeek 原生工程——每个设计选择都为成本、速度和可靠性优化。</span>
+    </p>
+  </div>
+
+  <div class="stats-band">
+    <div class="stat-card reveal">
+      <div class="stat-num">$0.007</div>
+      <div class="stat-label">
+        <span data-lang="en">per 1M tokens</span>
+        <span data-lang="zh" hidden>每百万 token</span>
+      </div>
+      <div class="stat-desc">
+        <span data-lang="en">V4-Flash prefix-cache hit, off-peak · 10–100× cheaper than Claude</span>
+        <span data-lang="zh" hidden>V4-Flash 前缀缓存命中价（错峰）· 比 Claude 便宜 10–100 倍</span>
+      </div>
+    </div>
+    <div class="stat-card reveal" style="transition-delay:.1s">
+      <div class="stat-num">~6 MB</div>
+      <div class="stat-label">
+        <span data-lang="en">download</span>
+        <span data-lang="zh" hidden>下载体积</span>
+      </div>
+      <div class="stat-desc">
+        <span data-lang="en">single static Go binary · zero deps · macOS / Linux / Windows</span>
+        <span data-lang="zh" hidden>单个静态 Go 二进制 · 零依赖 · macOS / Linux / Windows</span>
+      </div>
+    </div>
+    <div class="stat-card reveal" style="transition-delay:.2s">
+      <div class="stat-num">50% off</div>
+      <div class="stat-label">
+        <span data-lang="en">off-peak discount</span>
+        <span data-lang="zh" hidden>错峰折扣</span>
+      </div>
+      <div class="stat-desc">
+        <span data-lang="en">peak 09:00–12:00 / 14:00–18:00 (UTC+8) · everything else off-peak · live countdown in status bar</span>
+        <span data-lang="zh" hidden">高峰 09:00–12:00 / 14:00–18:00（北京）· 其余全部错峰 · 状态栏实时倒计时</span>
+      </div>
+    </div>
+    <div class="stat-card reveal" style="transition-delay:.3s">
+      <div class="stat-num">95.7%</div>
+      <div class="stat-label">
+        <span data-lang="en">cache hit rate</span>
+        <span data-lang="zh" hidden>缓存命中率</span>
+      </div>
+      <div class="stat-desc">
+        <span data-lang="en">After turn 5 on bootstrap benchmark · visible in status bar</span>
+        <span data-lang="zh" hidden>第 5 轮后自举基准测试 · 状态栏实时可见</span>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ FEATURE SHOWCASE ============ -->
+<section class="section-frame" data-title="SHOWCASE">
+  <div class="section-head reveal">
+    <p class="label">
+      <span data-lang="en">interactive demo</span>
+      <span data-lang="zh" hidden>交互演示</span>
+    </p>
+    <h2>
+      <span data-lang="en">See seek in action.</span>
+      <span data-lang="zh" hidden>看看 seek 怎么工作。</span>
+    </h2>
+    <p>
+      <span data-lang="en">Click a tab to watch a real seek session — unattended autopilot, subagent delegation, memory recall, web fetching, and more.</span>
+      <span data-lang="zh" hidden>点击标签页查看真实 seek 会话——无人值守 autopilot、subagent 委派、记忆召回、网页抓取等。</span>
+    </p>
+  </div>
+
+  <div class="showcase-term term-window reveal">
+    <div class="showcase-tabs" id="showcase-tabs" role="tablist" aria-label="Feature demos">
+      <button class="showcase-tab active" data-tab="agent" role="tab" aria-selected="true"><span class="icon icon-tab"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg></span><span data-lang="en">Agent</span><span data-lang="zh" hidden>智能体</span></button>
+      <button class="showcase-tab" data-tab="autopilot" role="tab" aria-selected="false"><span class="icon icon-tab"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg></span><span data-lang="en">Autopilot</span><span data-lang="zh" hidden>无人值守</span></button>
+      <button class="showcase-tab" data-tab="memory" role="tab" aria-selected="false"><span class="icon icon-tab"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="6" width="20" height="12" rx="2"/><path d="M6 12h4M14 12h4"/><circle cx="12" cy="12" r="1"/></svg></span><span data-lang="en">Memory</span><span data-lang="zh" hidden>记忆</span></button>
+      <button class="showcase-tab" data-tab="web" role="tab" aria-selected="false"><span class="icon icon-tab"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg></span><span data-lang="en">Web</span><span data-lang="zh" hidden>网络</span></button>
+      <button class="showcase-tab" data-tab="safety" role="tab" aria-selected="false"><span class="icon icon-tab"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg></span><span data-lang="en">Safety</span><span data-lang="zh" hidden>安全</span></button>
+      <button class="showcase-tab" data-tab="dx" role="tab" aria-selected="false"><span class="icon icon-tab"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09a1.65 1.65 0 0 0-1.08-1.51 1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09a1.65 1.65 0 0 0 1.51-1.08 1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1.08 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9c.26.604.852.997 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1.08z"/></svg></span><span data-lang="en">DX</span><span data-lang="zh" hidden>体验</span></button>
+    </div>
+    <div class="term-body" id="showcase-body">
+      <div id="showcase-output"></div>
+      <span class="typing-cursor blink" id="showcase-cursor">▊</span>
+    </div>
+  </div>
+</section>
+
+<!-- ============ TIMELINE ============ -->
+<section class="section-frame" data-title="CHANGELOG">
+  <div class="section-head reveal">
+    <p class="label">
+      <span data-lang="en">timeline</span>
+      <span data-lang="zh" hidden>版本演进</span>
+    </p>
+    <h2>
+      <span data-lang="en">git log --oneline</span>
+      <span data-lang="zh" hidden>git log --oneline</span>
+    </h2>
+    <p>
+      <span data-lang="en">v0–v7 PRD series all delivered, shipping as v0.8.1. Latest: autopilot, OS sandbox, ACP/Zed, offline OCR, <code>/goal</code>.</span>
+      <span data-lang="zh" hidden>v0–v7 PRD 系列全部交付，以 v0.8.1 发布。最新：autopilot、OS 沙箱、ACP/Zed、离线 OCR、<code>/goal</code>。</span>
+    </p>
+  </div>
+
+  <div class="timeline reveal">
+    <div><span class="tl-commit">3992a9f</span> <span class="tl-tag">(v0.8)</span> <span class="tl-date">2026-05</span> <span class="tl-msg"><span class="tl-highlight">autopilot</span> fleet · OS <span class="tl-highlight">sandbox</span> (seatbelt/landlock) · <span class="tl-highlight">ACP</span>/Zed · offline <span class="tl-highlight">OCR</span> · <span class="tl-highlight">/goal</span> autonomous loop</span></div>
+    <div><span class="tl-commit">a3f210c</span> <span class="tl-tag">(v0.7)</span> <span class="tl-date">2026-05</span> <span class="tl-msg"><span class="tl-highlight">cron</span> + schedule_wakeup + file triggers + OS notifications · <span class="tl-highlight">push-to-phone</span> webhooks</span></div>
+    <div><span class="tl-commit">d8b4e6f</span> <span class="tl-tag">(v0.6)</span> <span class="tl-date">2026-04</span> <span class="tl-msg"><span class="tl-highlight">subagent</span> + worktree isolation · <span class="tl-highlight">code-review</span> · background jobs + <span class="tl-highlight">monitor</span> · semantic <span class="tl-highlight">references</span></span></div>
+    <div><span class="tl-commit">7c2a19b</span> <span class="tl-tag">(v0.5)</span> <span class="tl-date">2026-03</span> <span class="tl-msg"><span class="tl-highlight">checkpoint</span> undo/redo · <span class="tl-highlight">shell-hooks</span> · webfetch SSRF-safe · <span class="tl-highlight">MCP</span> client</span></div>
+    <div><span class="tl-commit">f9e1d45</span> <span class="tl-tag">(v0.4)</span> <span class="tl-date">2026-02</span> <span class="tl-msg"><span class="tl-highlight">plan-mode</span> v2 (propose/execute) · skill v2 package format · permission refactor</span></div>
+    <div><span class="tl-commit">b4a882c</span> <span class="tl-tag">(v0.3)</span> <span class="tl-date">2026-01</span> <span class="tl-msg">skill lifecycle (create/install/update) · ask_user TUI picker · <span class="tl-highlight">/steer</span></span></div>
+    <div><span class="tl-commit">e05d1f7</span> <span class="tl-tag">(v0.2)</span> <span class="tl-date">2025-12</span> <span class="tl-msg"><span class="tl-highlight">three-tier memory</span> L/M/S · session JSONL persistence · skill loader</span></div>
+    <div><span class="tl-commit">1a9c34e</span> <span class="tl-tag">(v0.1)</span> <span class="tl-date">2025-11</span> <span class="tl-msg">DeepSeek-native core · <span class="tl-highlight">multi-provider</span> · terminal TUI · basic tool set</span></div>
+  </div>
+</section>
+
+<!-- ============ PRICING ============ -->
+<section class="section-frame" data-title="PRICING">
+  <div class="section-head reveal">
+    <p class="label">
+      <span data-lang="en">pricing</span>
+      <span data-lang="zh" hidden>定价</span>
+    </p>
+    <h2>
+      <span data-lang="en">Open source. Pay only for API.</span>
+      <span data-lang="zh" hidden>开源免费。只为 API 付费。</span>
+    </h2>
+    <p>
+      <span data-lang="en">seek is MIT-licensed and free. You only pay your LLM provider — and DeepSeek is 10–100× cheaper than alternatives.</span>
+      <span data-lang="zh" hidden>seek 是 MIT 开源免费软件。你只需为 LLM provider 付费——而 DeepSeek 比替代方案便宜 10–100 倍。</span>
+    </p>
+  </div>
+
+  <div class="stats-band reveal">
+    <div class="stat-card">
+      <div class="stat-num" style="color:var(--amber)">$0.007</div>
+      <div class="stat-label"><span data-lang="en">V4-Flash · cache hit</span><span data-lang="zh" hidden>V4-Flash · 缓存命中</span></div>
+      <div class="stat-desc"><span data-lang="en">per 1M input tokens, off-peak</span><span data-lang="zh" hidden>每百万输入 token（错峰）</span></div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-num" style="color:var(--teal)">$0.022</div>
+      <div class="stat-label"><span data-lang="en">V4-Pro · cache hit</span><span data-lang="zh" hidden>V4-Pro · 缓存命中</span></div>
+      <div class="stat-desc"><span data-lang="en">thinking mode enabled</span><span data-lang="zh" hidden>推理模式启用</span></div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-num" style="color:var(--dim)">$0.30</div>
+      <div class="stat-label"><span data-lang="en">Claude Sonnet 4 · cache hit</span><span data-lang="zh" hidden>Claude Sonnet 4 · 缓存命中</span></div>
+      <div class="stat-desc"><span data-lang="en">for comparison — 43× more</span><span data-lang="zh" hidden">对比参考——43 倍差价</span></div>
+    </div>
+    <div class="stat-card" style="border-color:var(--amber-dim)">
+      <div class="stat-num"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="width:.85em;height:.85em;vertical-align:-.06em"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg> 50% off</div>
+      <div class="stat-label"><span data-lang="en">off-peak discount</span><span data-lang="zh" hidden>错峰折扣</span></div>
+      <div class="stat-desc"><span data-lang="en">peak 09:00–12:00 / 14:00–18:00 (UTC+8) · live timer</span><span data-lang="zh" hidden>高峰 09:00–12:00 / 14:00–18:00（北京）· 实时计时</span></div>
+    </div>
+  </div>
+
+  <div class="price-note reveal" style="margin-top:20px;">
+    <span class="dot"></span>
+    <span data-lang="en">¹ Off-peak cache-hit rates (peak = 2×), effective 2026-08-16. <strong>95.7%</strong> cache hit rate on bootstrap benchmark — visible in status bar.</span>
+    <span data-lang="zh" hidden>¹ 错峰缓存命中价（高峰 = 2 倍），2026-08-16 起生效。自举基准测试缓存命中率 <strong>95.7%</strong>——状态栏实时可见。</span>
+  </div>
+</section>
+
+<!-- ============ CAPABILITY CAROUSEL ============ -->
+<section class="section-frame" data-title="CAPABILITIES">
+  <div class="section-head reveal">
+    <p class="label">
+      <span data-lang="en">capabilities</span>
+      <span data-lang="zh" hidden>能力矩阵</span>
+    </p>
+    <h2>
+      <span data-lang="en">30+ tools, one binary.</span>
+      <span data-lang="zh" hidden>30+ 工具，一个二进制。</span>
+    </h2>
+    <p>
+      <span data-lang="en">Scroll to explore every tool seek ships with — autonomy, agent, memory, web, safety, and developer experience.</span>
+      <span data-lang="zh" hidden>横向滚动浏览 seek 内置的全部工具——自治、智能体、记忆、网络、安全、开发体验。</span>
+    </p>
+  </div>
+
+  <div class="carousel-wrap reveal">
+    <div class="carousel-track" id="carousel-track">
+      <!-- Agent -->
+      <div class="carousel-card"><div class="card-term"><span class="c-prompt">$ seek agent --workers 3</span><br><span class="c-out">[agent] 3 subagents · parallel</span><br><span class="c-teal">[agent] worktrees cleaned ✓</span></div><div class="card-name">subagent</div><div class="card-desc"><span data-lang="en">Parallel workers with git worktree isolation — safe exploration at scale</span><span data-lang="zh" hidden>并行 subagent + git worktree 隔离——安全的规模化探索</span></div></div>
+      <div class="carousel-card"><div class="card-term"><span class="c-prompt">> /plan</span><br><span class="c-teal">▸ Plan mode active</span><br><span class="c-out">read-only → propose → execute</span></div><div class="card-name">plan-mode</div><div class="card-desc"><span data-lang="en">Read-only exploration → proposal → execution with checkpoint safety</span><span data-lang="zh" hidden">只读探索→提案→执行，checkpoint 安全网</span></div></div>
+      <div class="carousel-card"><div class="card-term"><span class="c-prompt">> /review</span><br><span class="c-out">[agent] activating plan + review</span><br><span class="c-teal">▸ 3 files · 2 suggestions</span></div><div class="card-name">code-review</div><div class="card-desc"><span data-lang="en">One-key review with plan-mode context and worktree isolation</span><span data-lang="zh" hidden">一键审查，plan-mode 上下文 + worktree 隔离</span></div></div>
+      <div class="carousel-card"><div class="card-term"><span class="c-prompt">$ seek agent "audit SQL"</span><br><span class="c-out">[agent] workers: sql-1 sql-2 sql-3</span><br><span class="c-teal">▸ 1 medium · $0.0031</span></div><div class="card-name">parallel-audit</div><div class="card-desc"><span data-lang="en">Multi-subagent security audit with consolidated reporting</span><span data-lang="zh" hidden>多 subagent 安全审计 + 汇总报告</span></div></div>
+      <!-- Autonomy & v7 -->
+      <div class="carousel-card"><div class="card-term"><span class="c-prompt">$ seek cron create --autopilot</span><br><span class="c-out">decompose → fleet → commit</span><br><span class="c-teal">▸ pushed · 📱 notified</span></div><div class="card-name">autopilot</div><div class="card-desc"><span data-lang="en">Unattended end-to-end: decompose → parallel worktree fleet → commit → push → webhook</span><span data-lang="zh" hidden>无人值守端到端：拆解 → 并行 worktree 舰队 → 提交 → 推送 → webhook</span></div></div>
+      <div class="carousel-card"><div class="card-term"><span class="c-prompt">$ seek goal run "tests pass"</span><br><span class="c-out">turn 3 · judge: not yet</span><br><span class="c-teal">▸ turn 5 · goal met ✓</span></div><div class="card-name">goal-loop</div><div class="card-desc"><span data-lang="en">Loops across turns until a cheap model judges your condition met — TUI / headless / cron</span><span data-lang="zh" hidden>跨多轮循环，直到便宜模型判定条件满足——TUI / headless / cron</span></div></div>
+      <div class="carousel-card"><div class="card-term"><span class="c-prompt">[sandbox] seatbelt active</span><br><span class="c-out">writes confined to CWD</span><br><span class="c-teal">▸ kernel-level · 0 deps</span></div><div class="card-name">os-sandbox</div><div class="card-desc"><span data-lang="en">seatbelt (macOS) / landlock (Linux) — kernel-level confinement, zero runtime deps</span><span data-lang="zh" hidden>seatbelt（macOS）/ landlock（Linux）——内核级隔离，零运行时依赖</span></div></div>
+      <div class="carousel-card"><div class="card-term"><span class="c-prompt">[acp] zed connected</span><br><span class="c-out">editor agent online</span><br><span class="c-teal">▸ image attach ready</span></div><div class="card-name">acp-zed</div><div class="card-desc"><span data-lang="en">Run seek as an editor agent over the Agent Client Protocol — works in Zed</span><span data-lang="zh" hidden>通过 Agent Client Protocol 把 seek 当编辑器 agent 跑——支持 Zed</span></div></div>
+      <div class="carousel-card"><div class="card-term"><span class="c-prompt">&gt; fix this @err.png</span><br><span class="c-out">[ocr] local · offline</span><br><span class="c-teal">▸ text → model, no VLM</span></div><div class="card-name">offline-ocr</div><div class="card-desc"><span data-lang="en">Reference or paste an image — seek OCRs it locally, no VLM and no network</span><span data-lang="zh" hidden>引用或粘贴图片——seek 本地 OCR，无 VLM、无网络</span></div></div>
+      <div class="carousel-card"><div class="card-term"><span class="c-prompt">[webhook] turn done</span><br><span class="c-out">POST ntfy / Slack / 飞书</span><br><span class="c-teal">▸ 📱 pushed to phone</span></div><div class="card-name">push-to-phone</div><div class="card-desc"><span data-lang="en">cron / autopilot / long-turn completions → webhook (ntfy / Slack / Discord / any URL)</span><span data-lang="zh" hidden>cron / autopilot / 长回合完成 → webhook（ntfy / Slack / Discord / 任意 URL）</span></div></div>
+      <div class="carousel-card"><div class="card-term"><span class="c-prompt">[references] who calls this?</span><br><span class="c-out">gopls · 7 call sites</span><br><span class="c-teal">▸ grep fallback if no LSP</span></div><div class="card-name">references</div><div class="card-desc"><span data-lang="en">Semantic "who calls this?" via LSP (gopls / pyright / tsserver), grep fallback</span><span data-lang="zh" hidden>语义「谁调用了它」走 LSP（gopls / pyright / tsserver），grep 兜底</span></div></div>
+      <div class="carousel-card"><div class="card-term"><span class="c-prompt">$ npm run build &amp;</span><br><span class="c-out">[bg-1] detached</span><br><span class="c-teal">▸ monitor: wait/poll/kill</span></div><div class="card-name">background-jobs</div><div class="card-desc"><span data-lang="en">Detach long builds/servers → bg-N; the monitor tool polls / waits / kills</span><span data-lang="zh" hidden>长 build/server 丢后台 → bg-N；monitor 工具 poll / wait / kill</span></div></div>
+      <!-- Memory -->
+      <div class="carousel-card"><div class="card-term"><span class="c-prompt">[memory_observe]</span><br><span class="c-out">payment-timeout-30s</span><br><span class="c-teal">▸ stored to M-index ✓</span></div><div class="card-name">memory-observe</div><div class="card-desc"><span data-lang="en">Auto-detect key decisions and persist to project M-index</span><span data-lang="zh" hidden"">自动检测关键决策并持久化到项目 M-index</span></div></div>
+      <div class="carousel-card"><div class="card-term"><span class="c-prompt">[memory_recall]</span><br><span class="c-out">"payment-timeout" → hit</span><br><span class="c-teal">▸ recall_count: 4</span></div><div class="card-name">memory-recall</div><div class="card-desc"><span data-lang="en">Semantic recall of past decisions — survives session restart</span><span data-lang="zh" hidden>语义召回过往决策——跨会话持久化</span></div></div>
+      <div class="carousel-card"><div class="card-term"><span class="c-prompt">[memory_archive]</span><br><span class="c-out">old-redis-config</span><br><span class="c-teal">▸ moved to archive ✓</span></div><div class="card-name">memory-archive</div><div class="card-desc"><span data-lang="en">Active forgetting — archive stale entries, clean M-index</span><span data-lang="zh" hidden">主动遗忘——归档过时条目，清理 M-index</span></div></div>
+      <div class="carousel-card"><div class="card-term"><span class="c-prompt">> /distill</span><br><span class="c-out">[session] extracting key points</span><br><span class="c-teal">▸ 14 turns → 3 insights</span></div><div class="card-name">session-distill</div><div class="card-desc"><span data-lang="en">Auto-extract reusable insights from long sessions</span><span data-lang="zh" hidden">从长会话中自动提炼可复用洞察</span></div></div>
+      <div class="carousel-card"><div class="card-term"><span class="c-prompt">$ seek -dream</span><br><span class="c-out">[soul] cross-project pattern:</span><br><span class="c-teal">▸ prefer interface-first</span></div><div class="card-name">soul-memory</div><div class="card-desc"><span data-lang="en">Cross-project user preferences — resident in system prompt</span><span data-lang="zh" hidden>跨项目用户偏好——常驻 system prompt</span></div></div>
+      <!-- Web & API -->
+      <div class="carousel-card"><div class="card-term"><span class="c-prompt">[webfetch] pkg.go.dev</span><br><span class="c-out">GET chi/v5 middleware</span><br><span class="c-teal">▸ 12.4 KiB extracted</span></div><div class="card-name">webfetch</div><div class="card-desc"><span data-lang="en">Fetch docs, RFCs, API references — SSRF-safe with redirect validation</span><span data-lang="zh" hidden">抓取文档/RFC/API 参考——SSRF 安全，重定向校验</span></div></div>
+      <div class="carousel-card"><div class="card-term"><span class="c-prompt">[fim_complete] edit.go:47</span><br><span class="c-out">fill-in-the-middle</span><br><span class="c-teal">▸ 5-10× cheaper than chat</span></div><div class="card-name">fim-complete</div><div class="card-desc"><span data-lang="en">DeepSeek FIM endpoint — small gap-fills at fraction of chat cost</span><span data-lang="zh" hidden">DeepSeek FIM 端点——小范围补全，成本仅为 chat 的 1/5-1/10</span></div></div>
+      <div class="carousel-card"><div class="card-term"><span class="c-prompt">[think] dual-model loop</span><br><span class="c-out">plan → execute → reflect</span><br><span class="c-teal">▸ V4-Pro reasoning</span></div><div class="card-name">thinking-mode</div><div class="card-desc"><span data-lang="en">On-demand DeepSeek reasoner for complex multi-step planning</span><span data-lang="zh" hidden">按需调用 DeepSeek 推理模型做复杂多步规划</span></div></div>
+      <div class="carousel-card"><div class="card-term"><span class="c-prompt">[schedule_wakeup]</span><br><span class="c-out">[wakeup] 5min → "check CI"</span><br><span class="c-teal">▸ cron job registered</span></div><div class="card-name">scheduled-wakeup</div><div class="card-desc"><span data-lang="en">One-shot future wake-ups — check CI results, follow up on PRs</span><span data-lang="zh" hidden">一次性定时唤醒——检查 CI 结果、跟进 PR</span></div></div>
+      <div class="carousel-card"><div class="card-term"><span class="c-prompt">[mcp-bridge] connect</span><br><span class="c-out">tool server online</span><br><span class="c-teal">▸ 12 tools exposed</span></div><div class="card-name">mcp-server</div><div class="card-desc"><span data-lang="en">MCP-compatible tool server — integrate with any MCP client</span><span data-lang="zh" hidden">MCP 兼容工具服务——对接任何 MCP 客户端</span></div></div>
+      <div class="carousel-card"><div class="card-term"><span class="c-prompt">[json-rpc] listen :9876</span><br><span class="c-out">headless mode active</span><br><span class="c-teal">▸ IDE integration ready</span></div><div class="card-name">json-rpc</div><div class="card-desc"><span data-lang="en">Headless JSON-RPC 2.0 mode for IDE and editor plugins</span><span data-lang="zh" hidden">无头 JSON-RPC 2.0 模式，用于 IDE/编辑器插件</span></div></div>
+      <!-- Safety -->
+      <div class="carousel-card"><div class="card-term"><span class="c-prompt">[checkpoint] save #a3f2</span><br><span class="c-out">3 files staged</span><br><span class="c-teal">▸ /undo to revert ✓</span></div><div class="card-name">checkpoint</div><div class="card-desc"><span data-lang="en">Per-turn git snapshot + file-level CAS undo/redo safety net</span><span data-lang="zh" hidden">每 turn git 快照 + 文件级 CAS 撤销/重做安全网</span></div></div>
+      <div class="carousel-card"><div class="card-term"><span class="c-prompt">[permission] bash blocked</span><br><span class="c-out">⚠ destructive command</span><br><span class="c-teal">▸ user approved (y)</span></div><div class="card-name">permission-acl</div><div class="card-desc"><span data-lang="en">Granular file + shell ACL — deny/ask/yolo with path whitelist</span><span data-lang="zh" hidden">细粒度文件+shell 权限——deny/ask/yolo + 路径白名单</span></div></div>
+      <div class="carousel-card"><div class="card-term"><span class="c-prompt">[enter_worktree] feat/x</span><br><span class="c-out">isolated copy created</span><br><span class="c-teal">▸ safe to experiment ✓</span></div><div class="card-name">worktree-isolation</div><div class="card-desc"><span data-lang="en">Git worktree sandbox — try refactors without touching working copy</span><span data-lang="zh" hidden">Git worktree 沙箱——尝试重构不影响工作副本</span></div></div>
+      <div class="carousel-card"><div class="card-term"><span class="c-prompt">[shell-hooks] pre-edit</span><br><span class="c-out">running .seek/hooks.toml</span><br><span class="c-teal">▸ lint passed ✓</span></div><div class="card-name">shell-hooks</div><div class="card-desc"><span data-lang="en">Pre/post tool lifecycle hooks — auto-lint, format, validate</span><span data-lang="zh" hidden">工具调用前后 shell 钩子——自动 lint/格式化/校验</span></div></div>
+      <!-- DX -->
+      <div class="carousel-card"><div class="card-term"><span class="c-prompt">> /model</span><br><span class="c-teal">▸ V4-Flash → V4-Pro</span><br><span class="c-out">thinking: enabled</span></div><div class="card-name">slash-commands</div><div class="card-desc"><span data-lang="en">/model /effort /yolo /plan /review /steer — keyboard-first UX</span><span data-lang="zh" hidden">/model /effort /yolo /plan /review /steer——键盘优先体验</span></div></div>
+      <div class="carousel-card"><div class="card-term"><span class="c-prompt">[ask_user] picker open</span><br><span class="c-out">"install scope?"</span><br><span class="c-teal">▸ selected: project</span></div><div class="card-name">ask-user-picker</div><div class="card-desc"><span data-lang="en">Model can open TUI picker to ask for your decision — inline, no context switch</span><span data-lang="zh" hidden">模型可打开 TUI 选择器征求你的决定——内联，不切换上下文</span></div></div>
+      <div class="carousel-card"><div class="card-term"><span class="c-prompt">$ sudo seek -upgrade</span><br><span class="c-out">verify sha256 · replace</span><br><span class="c-teal">▸ v0.7.0 → v0.8.1 ✓</span></div><div class="card-name">self-upgrade</div><div class="card-desc"><span data-lang="en">Atomic in-place upgrade — verify sha256, replace binary, no re-download (sudo on macOS / Linux; Windows runs as-is)</span><span data-lang="zh" hidden">原子级原地升级——校验 sha256、替换二进制（macOS / Linux 需 sudo；Windows 无需）</span></div></div>
+      <div class="carousel-card"><div class="card-term"><span class="c-prompt">[skill] install frontend</span><br><span class="c-out">fetching from GitHub...</span><br><span class="c-teal">▸ installed to ~/.seek/</span></div><div class="card-name">skill-ecosystem</div><div class="card-desc"><span data-lang="en">Anthropic-compatible skill format — create, install, update, uninstall</span><span data-lang="zh" hidden">兼容 Anthropic skill 格式——创建/安装/更新/卸载</span></div></div>
+      <div class="carousel-card"><div class="card-term"><span class="c-prompt">[provider] switch</span><br><span class="c-teal">▸ DeepSeek → Anthropic</span><br><span class="c-out">+ OpenAI · Gemini</span></div><div class="card-name">multi-provider</div><div class="card-desc"><span data-lang="en">DeepSeek + Anthropic + OpenAI + Gemini — switch inline with /model</span><span data-lang="zh" hidden">DeepSeek + Anthropic + OpenAI + Gemini——/model 内联切换</span></div></div>
+      <div class="carousel-card"><div class="card-term"><span class="c-prompt">&gt; 帮我重构这个函数</span><br><span class="c-out">[reply lang: zh · auto]</span><br><span class="c-teal">▸ 跟随用户输入</span></div><div class="card-name">auto-language</div><div class="card-desc"><span data-lang="en">Reply language auto-matches your input — no flag, no toggle. Chinese in → Chinese out; English in → English out</span><span data-lang="zh" hidden">回复语言自适应跟随你的输入——无 flag、无 toggle。中文进 → 中文出；英文进 → 英文出</span></div></div>
+    </div>
+    <div class="carousel-nav">
+      <button id="carousel-prev" aria-label="Scroll left"><span class="icon icon-sm"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"/></svg></span></button>
+      <button id="carousel-next" aria-label="Scroll right"><span class="icon icon-sm"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18l6-6-6-6"/></svg></span></button>
+    </div>
+  </div>
+</section>
+
+<!-- ============ INSTALL ============ -->
+<section class="section-frame" id="install" data-title="INSTALL">
+  <div class="section-head reveal">
+    <p class="label">
+      <span data-lang="en">install</span>
+      <span data-lang="zh" hidden>安装</span>
+    </p>
+    <h2>
+      <span data-lang="en">One binary, anywhere.</span>
+      <span data-lang="zh" hidden>一个二进制，随处可用。</span>
+    </h2>
+    <p>
+      <span data-lang="en">No runtime deps, no package manager required. Pick your path.</span>
+      <span data-lang="zh" hidden>无需运行时依赖，无需包管理器。选一种方式。</span>
+    </p>
+  </div>
+
+  <div class="install-grid">
+    <div class="install-option reveal">
+      <h4>
+        <span data-lang="en">macOS / Linux (curl pipe)</span>
+        <span data-lang="zh" hidden>macOS / Linux（curl 管道）</span>
+      </h4>
+      <p class="detail">
+        <span data-lang="en">Pulls the latest release — no Go toolchain needed.</span>
+        <span data-lang="zh" hidden>拉取最新版本——无需 Go 工具链。</span>
+      </p>
+      <code id="code-curl" tabindex="0" role="button" aria-label="Copy install command"><span class="prompt-inline">$</span> OS=$(uname -s | tr '[:upper:]' '[:lower:]')<br><span class="prompt-inline">$</span> ARCH=$(uname -m | sed 's/x86_64/amd64/;s/aarch64/arm64/')<br><span class="prompt-inline">$</span> VER=$(curl -fsSL https://api.github.com/repos/whyiyhw/seek/releases/latest | sed -nE 's/.*"tag_name":[[:space:]]*"v([^"]+)".*/\1/p')<br><span class="prompt-inline">$</span> curl -fsSL "https://github.com/whyiyhw/seek/releases/download/v${VER}/seek_${VER}_${OS}_${ARCH}.tar.gz" | sudo tar -xz -C /usr/local/bin seek</code>
+    </div>
+    <div class="install-option reveal" style="transition-delay:.1s">
+      <h4>
+        <span data-lang="en">Go install (from source)</span>
+        <span data-lang="zh" hidden>Go 安装（从源码）</span>
+      </h4>
+      <p class="detail">
+        <span data-lang="en">Requires Go 1.25+. One command — installs to <code style="font-size:.75rem;display:inline;padding:2px 6px;background:var(--border);color:var(--teal);">$GOPATH/bin</code>.</span>
+        <span data-lang="zh" hidden>需要 Go 1.25+。一条命令——安装到 <code style="font-size:.75rem;display:inline;padding:2px 6px;background:var(--border);color:var(--teal);">$GOPATH/bin</code>。</span>
+      </p>
+      <code id="code-go" tabindex="0" role="button" aria-label="Copy install command"><span class="prompt-inline">$</span> go install github.com/whyiyhw/seek/cmd/seek@latest</code>
+    </div>
+    <div class="install-option reveal" style="transition-delay:.2s">
+      <h4>Windows</h4>
+      <p class="detail">
+        <span data-lang="en">Download from <a href="https://github.com/whyiyhw/seek/releases/latest" style="color:var(--teal);">Releases</a> or run the PowerShell one-liner below. <strong>Use <a href="https://github.com/microsoft/terminal" style="color:var(--teal);">Windows Terminal</a></strong> — the legacy blue PowerShell window mis-renders the TUI.</span>
+        <span data-lang="zh" hidden>从 <a href="https://github.com/whyiyhw/seek/releases/latest" style="color:var(--teal);">Releases</a> 下载，或运行下方 PowerShell 一行命令。<strong>请在 <a href="https://github.com/microsoft/terminal" style="color:var(--teal);">Windows Terminal</a> 中运行</strong>——老式蓝底 PowerShell 窗口会错乱渲染 TUI。</span>
+      </p>
+      <code id="code-windows" tabindex="0" role="button" aria-label="Copy install command"><span class="prompt-inline">PS&gt;</span> $v=(irm https://api.github.com/repos/whyiyhw/seek/releases/latest).tag_name; irm "https://github.com/whyiyhw/seek/releases/download/$v/seek_$($v.Substring(1))_windows_amd64.zip" -OutFile seek.zip; Expand-Archive -Force seek.zip -Dest .; Remove-Item seek.zip; .\seek.exe -install; echo "Done -- restart shell, then run: seek"</code>
+    </div>
+    <div class="install-option reveal" style="transition-delay:.3s">
+      <h4>
+        <span data-lang="en">Upgrade</span>
+        <span data-lang="zh" hidden>升级</span>
+      </h4>
+      <p class="detail">
+        <span data-lang="en">Atomic in-place update. Pulls the latest release, verifies sha256, replaces the binary — no re-download needed. <strong>macOS / Linux: requires <code style="font-size:.75rem;display:inline;padding:1px 5px;background:var(--border);color:var(--teal);">sudo</code></strong> when installed to <code style="font-size:.75rem;display:inline;padding:1px 5px;background:var(--border);color:var(--teal);">/usr/local/bin</code> (the default).</span>
+        <span data-lang="zh" hidden>原子级原地更新。拉取最新版本、校验 sha256、替换二进制——无需重新下载。<strong>macOS / Linux：</strong>若装在 <code style="font-size:.75rem;display:inline;padding:1px 5px;background:var(--border);color:var(--teal);">/usr/local/bin</code>（默认）下需要 <code style="font-size:.75rem;display:inline;padding:1px 5px;background:var(--border);color:var(--teal);">sudo</code>。</span>
+      </p>
+      <code id="code-upgrade" tabindex="0" role="button" aria-label="Copy install command"><span class="prompt-inline">$</span> sudo seek -upgrade   <span style="color:var(--dim);">&nbsp;# macOS / Linux</span><br><span class="prompt-inline">PS&gt;</span> seek -upgrade       <span style="color:var(--dim);">&nbsp;# Windows (user-owned PATH)</span></code>
+    </div>
+  </div>
+
+  <div class="price-note reveal" style="margin-top:28px;">
+    <span class="dot"></span>
+    <span data-lang="en">First run walks you through provider setup — no manual <code style="font-size:.78rem">export</code> needed.</span>
+    <span data-lang="zh" hidden>首次运行会引导你配置 provider——无需手动 <code style="font-size:.78rem">export</code>。</span>
+  </div>
+
+  <div class="price-note reveal" style="margin-top:10px;">
+    <span class="dot"></span>
+    <span data-lang="en"><strong>macOS Gatekeeper:</strong> <code style="font-size:.78rem">curl | tar</code> doesn't trigger quarantine. If your browser download is blocked: <code style="font-size:.78rem">xattr -d com.apple.quarantine seek</code>.</span>
+    <span data-lang="zh" hidden><strong>macOS Gatekeeper：</strong><code style="font-size:.78rem">curl | tar</code> 管道不会触发隔离。若浏览器下载被拦：<code style="font-size:.78rem">xattr -d com.apple.quarantine seek</code>。</span>
+  </div>
+
+  <div class="price-note reveal" style="margin-top:10px;">
+    <span class="dot"></span>
+    <span data-lang="en"><strong>No sudo?</strong> Install to <code style="font-size:.78rem">~/.local/bin</code> instead — just change <code style="font-size:.78rem">-C /usr/local/bin</code> to <code style="font-size:.78rem">-C ~/.local/bin</code>, then add it to your <code style="font-size:.78rem">PATH</code>.</span>
+    <span data-lang="zh" hidden><strong>不想用 sudo？</strong>装到 <code style="font-size:.78rem">~/.local/bin</code>——把上面命令的 <code style="font-size:.78rem">-C /usr/local/bin</code> 换成 <code style="font-size:.78rem">-C ~/.local/bin</code>，再把这个目录加入 <code style="font-size:.78rem">PATH</code> 即可。</span>
+  </div>
+</section>
+
+</main>
+
+<!-- ============ FOOTER ============ -->
+<footer>
+  <div class="container">
+    <p><strong>seek</strong> · <span data-lang="en">MIT licensed</span><span data-lang="zh" hidden>MIT 开源</span> · <a href="https://github.com/whyiyhw/seek">GitHub</a> · <a href="docs/index.html"><span data-lang="en">Docs</span><span data-lang="zh" hidden>文档</span></a></p>
+    <p>
+      <span data-lang="en">Built with Go · DeepSeek + Anthropic + OpenAI + Gemini · v0.8.1 — autopilot · sandbox · ACP/Zed · /goal</span>
+      <span data-lang="zh" hidden>Go 构建 · DeepSeek + Anthropic + OpenAI + Gemini · v0.8.1——autopilot · 沙箱 · ACP/Zed · /goal</span>
+    </p>
+    <p style="margin-top:10px;font-size:.82rem;color:var(--dim);">
+      <span data-lang="en"><span class="icon icon-sm" style="display:inline-flex;vertical-align:middle;margin-right:3px"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2l1.5 5.5L19 9l-5.5 1.5L12 16l-1.5-5.5L5 9l5.5-1.5z"/></svg></span>This page was created by <strong>seek</strong> + <strong>DeepSeek V4-Flash</strong></span>
+      <span data-lang="zh" hidden><span class="icon icon-sm" style="display:inline-flex;vertical-align:middle;margin-right:3px"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2l1.5 5.5L19 9l-5.5 1.5L12 16l-1.5-5.5L5 9l5.5-1.5z"/></svg></span>本站由 <strong>seek</strong> + <strong>DeepSeek V4-Flash</strong> 生成</span>
+    </p>
+  </div>
+</footer>
+
+<script>
+  // ============ COPY TO CLIPBOARD ============
+  document.querySelectorAll('.install-option code[role="button"]').forEach(code => {
+    code.addEventListener('click', async () => {
+      // Walk children so <br> becomes a real newline — textContent would drop it
+      // and concatenate every line into one, which silently breaks multi-line
+      // shell snippets (e.g. OS=...$ ARCH=...$ VER=... gets parsed as env-var
+      // prefixes to the final curl, with trailing literal "$" in each value).
+      let raw = '';
+      code.childNodes.forEach(node => {
+        if (node.nodeName === 'BR') raw += '\n';
+        else raw += node.textContent || '';
+      });
+      const cleaned = raw.replace(/^(\$|PS>)\s*/gm, '').trim();
+      try {
+        await navigator.clipboard.writeText(cleaned);
+      } catch {
+        // Fallback for older browsers / non-HTTPS
+        const ta = document.createElement('textarea');
+        ta.value = cleaned;
+        ta.style.position = 'fixed';
+        ta.style.opacity = '0';
+        document.body.appendChild(ta);
+        ta.select();
+        document.execCommand('copy');
+        document.body.removeChild(ta);
+      }
+      // Visual feedback: brief background flash
+      code.style.transition = 'background 0.12s, color 0.12s';
+      code.style.background = 'var(--teal)';
+      code.style.color = 'var(--bg)';
+      setTimeout(() => {
+        code.style.removeProperty('background');
+        code.style.removeProperty('color');
+        code.style.removeProperty('transition');
+      }, 700);
+    });
+  });
+
+  // ============ SCROLL REVEAL ============
+  if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+    document.querySelectorAll('.reveal').forEach(el => el.classList.add('visible'));
+  } else {
+    const observer = new IntersectionObserver((entries) => {
+      entries.forEach(entry => {
+        if (entry.isIntersecting) {
+          entry.target.classList.add('visible');
+          observer.unobserve(entry.target);
+        }
+      });
+    }, { threshold: 0.15, rootMargin: '0px 0px -40px 0px' });
+    document.querySelectorAll('.reveal').forEach(el => observer.observe(el));
+  }
+
+  // ============ LANGUAGE TOGGLE ============
+  let currentLang = localStorage.getItem('seek-lang') || 'en';
+
+  function setLang(lang) {
+    currentLang = lang;
+    localStorage.setItem('seek-lang', lang);
+    document.documentElement.lang = lang === 'en' ? 'en' : 'zh';
+    document.title = lang === 'en'
+      ? 'seek — DeepSeek-native AI coding agent'
+      : 'seek — DeepSeek 原生 AI 编程助手';
+    document.querySelectorAll('[data-lang]').forEach(el => {
+      el.hidden = el.getAttribute('data-lang') !== lang;
+    });
+  }
+
+  // ============ LANGUAGE TOGGLE (segmented) ============
+  const toggle = document.getElementById('langToggle');
+  const segments = toggle.querySelectorAll('span');
+
+  function updateSegments(lang) {
+    segments.forEach(s => {
+      s.classList.toggle('active', s.getAttribute('data-lang-val') === lang);
+    });
+  }
+
+  segments.forEach(s => {
+    s.addEventListener('click', () => {
+      const lang = s.getAttribute('data-lang-val');
+      if (lang !== currentLang) {
+        setLang(lang);
+        updateSegments(lang);
+      }
+    });
+    s.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter' || e.key === ' ') {
+        e.preventDefault();
+        const lang = s.getAttribute('data-lang-val');
+        if (lang !== currentLang) {
+          setLang(lang);
+          updateSegments(lang);
+        }
+      }
+    });
+  });
+
+  setLang(currentLang);
+  updateSegments(currentLang);
+
+  // ============ THEME TOGGLE ============
+  const themeBtn = document.getElementById('themeToggle');
+  let currentTheme = localStorage.getItem('seek-theme') || 'dark';
+
+  function setTheme(theme) {
+    currentTheme = theme;
+    localStorage.setItem('seek-theme', theme);
+    document.documentElement.setAttribute('data-theme', theme);
+    document.querySelector('.icon-sun').hidden = theme === 'dark';
+    document.querySelector('.icon-moon').hidden = theme === 'light';
+    document.querySelector('meta[name="theme-color"]').content =
+      theme === 'dark' ? '#0b0b0e' : '#f7f3ec';
+  }
+
+  themeBtn.addEventListener('click', () => {
+    setTheme(currentTheme === 'dark' ? 'light' : 'dark');
+  });
+
+  setTheme(currentTheme);
+
+  // ============ TERMINAL TYPEWRITER ============
+  (function termTyper() {
+    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+    const termWindow = document.getElementById('term-demo');
+    const output = document.getElementById('term-output');
+    const cursor = document.getElementById('typing-cursor');
+    const statusLeft = document.querySelector('.term-statusbar .status-left');
+    const statusRight = document.querySelector('.term-statusbar .status-right');
+    if (!termWindow || !output || !cursor || !statusLeft || !statusRight) return;
+
+    const responseChars = '[agent] spawning subagent to explore codebase...\n[subagent:explore] scanned 14 files, found auth.ts + router.tsx\n[agent] proposing plan: refactor auth middleware into 3 modules\n[plan: approved] executing with checkpoint safety net\n[agent] 5 files modified · checkpoint #a3f2 saved — /undo to revert\n\n$ ';
+
+    const spinnerFrames = ['⠋','⠙','⠹','⠸','⠼','⠴','⠦','⠧','⠇','⠏'];
+
+    const statusLabels = [
+      { l: 'turns:0  tools:0', r: 'cache 0.0%' },
+      { l: 'turns:1  tools:3  subagent:1', r: 'cache 75.0%' },
+      { l: 'turns:2  tools:5  cost $0.0014', r: 'cache 89.5%  🌙 off-peak' },
+      { l: 'turns:2  tools:6  cost $0.0028', r: 'cache 97.3%  ctx 14%  🌙' },
+    ];
+
+    function setStatus(n) {
+      statusLeft.textContent = statusLabels[n].l;
+      statusRight.textContent = statusLabels[n].r;
+    }
+
+    function typeChars(text, cls, cb, speed) {
+      speed = speed || 22;
+      const termBody = termWindow.querySelector('.term-body');
+      let container = document.createElement('span');
+      container.className = 'term-out-line' + (cls ? ' ' + cls : '');
+      output.appendChild(container);
+      let textSpan = document.createElement('span');
+      container.appendChild(textSpan);
+      container.appendChild(cursor);
+      let i = 0;
+      let accum = '';
+      (function tick() {
+        if (i < text.length) {
+          const ch = text[i];
+          if (ch === '\n') {
+            const br = document.createElement('br');
+            output.appendChild(br);
+            container = document.createElement('span');
+            container.className = 'term-out-line' + (cls ? ' ' + cls : '');
+            output.appendChild(container);
+            textSpan = document.createElement('span');
+            container.appendChild(textSpan);
+            container.appendChild(cursor);
+            accum = '';
+          } else {
+            accum += ch;
+            textSpan.textContent = accum;
+          }
+          if (termBody) termBody.scrollTop = termBody.scrollHeight;
+          i++;
+          const pause = ',.;:!?'.includes(text[i-1]) ? 80 : 0;
+          setTimeout(tick, i === 1 ? 300 : speed + Math.random() * 18 + pause);
+        } else {
+          const br = document.createElement('br');
+          output.appendChild(br);
+          output.appendChild(cursor);
+          if (termBody) termBody.scrollTop = termBody.scrollHeight;
+          if (cb) setTimeout(function() { cb(container); }, 300);
+        }
+      })();
+    }
+
+    function showToolCall(cb) {
+      const termBody = termWindow.querySelector('.term-body');
+      const el = document.createElement('span');
+      el.className = 'term-out-line';
+      output.appendChild(el);
+      el.appendChild(cursor);
+      const sp = document.createElement('span');
+      sp.className = 'tool-spinner';
+      sp.textContent = '\u25B6';
+      el.insertBefore(sp, cursor);
+      el.insertBefore(document.createTextNode(' read cmd/server/main.go'), cursor);
+      if (termBody) termBody.scrollTop = termBody.scrollHeight;
+      let n = 0;
+      const iv = setInterval(function() {
+        sp.textContent = spinnerFrames[n % spinnerFrames.length];
+        n++;
+        if (n >= 10) {
+          clearInterval(iv);
+          sp.textContent = '\u25B6';
+          const br = document.createElement('br');
+          output.appendChild(br);
+          output.appendChild(cursor);
+          if (termBody) termBody.scrollTop = termBody.scrollHeight;
+          setStatus(2);
+          if (cb) setTimeout(cb, 400);
+        }
+      }, 100);
+    }
+
+    function startDemo() {
+      cursor.classList.remove('blink');
+      setStatus(0);
+      typeChars('$ seek "refactor auth into separate modules"', 'prompt', function(container) {
+        if (container) container.innerHTML = '<span class="hl">$</span> <span class="ht">seek</span> "refactor auth into separate modules"';
+        setStatus(1);
+        showToolCall(function() {
+          typeChars(responseChars, '', function() {
+            setStatus(3);
+            cursor.classList.add('done');
+          }, 10);
+        });
+      });
+    }
+
+    const termObserver = new IntersectionObserver(function(entries) {
+      entries.forEach(function(entry) {
+        if (entry.isIntersecting) {
+          setTimeout(startDemo, 500);
+          termObserver.unobserve(entry.target);
+        }
+      });
+    });
+    termObserver.observe(termWindow);
+  })();
+
+  // ============ COST BAR ANIMATION ============
+  (function animateCostBars() {
+    const bars = document.getElementById('cost-bars');
+    if (!bars) return;
+
+    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+      bars.classList.add('visible');
+      return;
+    }
+
+    const barObserver = new IntersectionObserver((entries) => {
+      entries.forEach(entry => {
+        if (entry.isIntersecting) {
+          entry.target.classList.add('visible');
+          barObserver.unobserve(entry.target);
+        }
+      });
+    }, { threshold: 0.4 });
+
+    barObserver.observe(bars);
+  })();
+
+  // ============ BACK TO TOP ============
+  (function backToTop() {
+    const btn = document.getElementById('backTop');
+    if (!btn) return;
+
+    let ticking = false;
+    window.addEventListener('scroll', () => {
+      if (!ticking) {
+        requestAnimationFrame(() => {
+          btn.classList.toggle('show', window.scrollY > 300);
+          ticking = false;
+        });
+        ticking = true;
+      }
+    });
+
+    btn.addEventListener('click', () => {
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    });
+  })();
+
+  // ============ RIPPLE EFFECT ============
+  function createRipple(e, el) {
+    const rect = el.getBoundingClientRect();
+    const size = Math.max(rect.width, rect.height);
+    const x = e.clientX - rect.left - size / 2;
+    const y = e.clientY - rect.top - size / 2;
+    const ripple = document.createElement('span');
+    ripple.className = 'ripple';
+    ripple.style.width = ripple.style.height = size + 'px';
+    ripple.style.left = x + 'px';
+    ripple.style.top = y + 'px';
+    el.appendChild(ripple);
+    ripple.addEventListener('animationend', () => ripple.remove());
+  }
+
+  document.querySelectorAll('.btn, .install-option code').forEach(el => {
+    el.addEventListener('click', function (e) {
+      createRipple(e, this);
+    });
+  });
+
+  // ============ COUNTER ANIMATION ============
+  (function animateCounters() {
+    const els = document.querySelectorAll('[data-target]');
+    if (!els.length) return;
+
+    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+
+    function parseDisplay(text) {
+      const match = text.match(/^([^\d.]*)([\d.]+)(.*)$/);
+      if (!match) return { prefix: '', num: parseFloat(text) || 0, suffix: '' };
+      return { prefix: match[1], num: parseFloat(match[2]), suffix: match[3] };
+    }
+
+    function animate(el, target, duration) {
+      const display = parseDisplay(el.textContent);
+      const startTime = performance.now();
+      const isDecimal = target % 1 !== 0;
+      const decimals = isDecimal ? String(target).split('.')[1].length : 0;
+
+      function tick(now) {
+        const elapsed = now - startTime;
+        const progress = Math.min(elapsed / duration, 1);
+        const eased = 1 - Math.pow(1 - progress, 3);
+        const current = eased * target;
+        el.textContent = display.prefix + current.toFixed(decimals) + display.suffix;
+        if (progress < 1) requestAnimationFrame(tick);
+      }
+      requestAnimationFrame(tick);
+    }
+
+    const counterObserver = new IntersectionObserver((entries) => {
+      entries.forEach(entry => {
+        if (entry.isIntersecting) {
+          const target = parseFloat(entry.target.getAttribute('data-target'));
+          if (!isNaN(target)) {
+            animate(entry.target, target, 1200);
+          }
+          counterObserver.unobserve(entry.target);
+        }
+      });
+    }, { threshold: 0.5 });
+
+    els.forEach(el => counterObserver.observe(el));
+  })();
+
+  // ============ FEATURE SHOWCASE TABS ============
+  (function showcaseTabs() {
+    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+      // Still allow tab switching, just no animation
+    }
+    const tabs = document.querySelectorAll('#showcase-tabs .showcase-tab');
+    const output = document.getElementById('showcase-output');
+    const cursor = document.getElementById('showcase-cursor');
+    if (!tabs.length || !output || !cursor) return;
+
+    // Demo scripts for each tab
+    const demos = {
+      agent: [
+        { text: '$ seek agent --task "audit SQL injection risks" --workers 3\n', cls: 'prompt', delay: 0 },
+        { text: '[agent] provisioning 3 subagents in parallel worktrees...\n', cls: 'dim', delay: 300 },
+        { text: '[subagent:sql-audit-1] scanned 12 handlers — 0 issues\n', cls: '', delay: 200 },
+        { text: '[subagent:sql-audit-2] found 1 potential risk in user_query.go:47\n', cls: '', delay: 200 },
+        { text: '[subagent:sql-audit-3] validated query builder — all parameterised ✅\n', cls: '', delay: 200 },
+        { text: '[agent] consolidated report: 1 medium finding · 4 files reviewed\n', cls: 'teal', delay: 200 },
+        { text: '[agent] worktrees cleaned · total cost $0.0031\n', cls: 'dim', delay: 200 },
+      ],
+      autopilot: [
+        { text: '$ seek cron create --autopilot "clear the bug backlog" --at 02:00\n', cls: 'prompt', delay: 0 },
+        { text: '[cron] registered via launchd — no daemon, fires at 02:00 🌙\n', cls: 'dim', delay: 300 },
+        { text: '[autopilot] decomposed backlog → 4 independent tasks\n', cls: '', delay: 250 },
+        { text: '[fleet] 4 sub-agents, each in its own git worktree, in parallel\n', cls: '', delay: 220 },
+        { text: '[worktree:fix-1] race in cache.go patched · tests green ✅\n', cls: '', delay: 200 },
+        { text: '[worktree:fix-3] nil-deref in router.go patched · tests green ✅\n', cls: '', delay: 200 },
+        { text: '[autopilot] 4/4 done · committed · pushed branch fix/backlog\n', cls: 'teal', delay: 220 },
+        { text: '[webhook] 📱 pushed to your phone — “backlog cleared · $0.04”\n', cls: 'teal', delay: 220 },
+      ],
+      memory: [
+        { text: '$ seek "update the payment service timeout to 30s"\n', cls: 'prompt', delay: 0 },
+        { text: '[memory_observe] recording decision: payment-timeout-30s\n', cls: 'dim', delay: 200 },
+        { text: '[memory_observe] value-check passed — stored to project M-index\n', cls: '', delay: 200 },
+        { text: '[edit] payment/service.go updated\n', cls: '', delay: 200 },
+        { text: '$ seek "what was that timeout value we settled on?"\n', cls: 'prompt', delay: 400 },
+        { text: '[memory_recall] payment-timeout-30s hit (recall_count: 3)\n', cls: 'dim', delay: 200 },
+        { text: '[agent] 30 seconds — set in payment/service.go line 12\n', cls: 'teal', delay: 200 },
+      ],
+      web: [
+        { text: '$ seek "how does the chi router handle middleware groups?"\n', cls: 'prompt', delay: 0 },
+        { text: '[webfetch] GET https://pkg.go.dev/github.com/go-chi/chi/v5...\n', cls: 'dim', delay: 200 },
+        { text: '[webfetch] 12.4 KiB plain-text extracted\n', cls: '', delay: 200 },
+        { text: '[agent] chi groups middleware via chi.With() + Route().\n', cls: 'teal', delay: 200 },
+        { text: '[agent] Example: r.Group(func(r chi.Router) { r.Use(mw) })\n', cls: '', delay: 200 },
+        { text: '[fim_complete] patched middleware.go with chi.Group() pattern\n', cls: 'dim', delay: 200 },
+      ],
+      safety: [
+        { text: '$ seek "delete all temp files older than 7 days"\n', cls: 'prompt', delay: 0 },
+        { text: '[bash] find /tmp -name "*.tmp" -mtime +7 -delete\n', cls: '', delay: 200 },
+        { text: '[permission] ⚠ destructive command — approval required\n', cls: 'teal', delay: 200 },
+        { text: '▸ User approved (y)\n', cls: 'dim', delay: 300 },
+        { text: '[bash] cleaned 23 files · 1.2 MB freed\n', cls: '', delay: 200 },
+        { text: '[checkpoint] snapshot #d7e3 saved — /undo to revert\n', cls: 'dim', delay: 200 },
+      ],
+      dx: [
+        { text: '$ seek\n', cls: 'prompt', delay: 0 },
+        { text: 'seek v0.8.1 — DeepSeek V4-Flash (think: off)\n', cls: 'dim', delay: 200 },
+        { text: 'session v2-e8a2.jsonl loaded · 14 turns · 3 memories active\n', cls: '', delay: 200 },
+        { text: '> /model\n', cls: 'prompt', delay: 300 },
+        { text: '▸ Switched to deepseek-v4-pro · thinking enabled\n', cls: 'teal', delay: 200 },
+        { text: '> /plan\n', cls: 'prompt', delay: 300 },
+        { text: '▸ Plan mode active — read-only exploration\n', cls: '', delay: 200 },
+        { text: '> ask_user("Pick install scope:", ["user","project"])\n', cls: 'prompt', delay: 300 },
+        { text: '▸ TUI picker opened — user selected: project\n', cls: 'teal', delay: 200 },
+      ],
+    };
+
+    let activeTab = 'agent';
+    let typingTimer = null;
+
+    function clearShowcase() {
+      if (typingTimer) { clearTimeout(typingTimer); typingTimer = null; }
+      output.innerHTML = '';
+      cursor.className = 'typing-cursor blink';
+    }
+
+    function playDemo(tabId) {
+      clearShowcase();
+      const script = demos[tabId];
+      if (!script) return;
+
+      let i = 0;
+      function next() {
+        if (i >= script.length) {
+          cursor.className = 'typing-cursor done';
+          return;
+        }
+        const line = script[i];
+        const span = document.createElement('span');
+        span.className = 'term-out-line' + (line.cls ? ' ' + line.cls : '');
+        span.textContent = line.text;
+        output.appendChild(span);
+        // Scroll to bottom
+        const body = document.getElementById('showcase-body');
+        if (body) body.scrollTop = body.scrollHeight;
+        i++;
+        typingTimer = setTimeout(next, line.delay + (line.text.length * 3));
+      }
+      next();
+    }
+
+    // Tab click handler
+    tabs.forEach(tab => {
+      tab.addEventListener('click', () => {
+        const tabId = tab.getAttribute('data-tab');
+        if (tabId === activeTab) return;
+        tabs.forEach(t => { t.classList.remove('active'); t.setAttribute('aria-selected', 'false'); });
+        tab.classList.add('active');
+        tab.setAttribute('aria-selected', 'true');
+        activeTab = tabId;
+        playDemo(tabId);
+      });
+    });
+
+    // Auto-play on scroll into view
+    let played = false;
+    const showcaseSection = document.querySelector('[data-title="SHOWCASE"]');
+    if (showcaseSection) {
+      const obs = new IntersectionObserver((entries) => {
+        entries.forEach(entry => {
+          if (entry.isIntersecting && !played) {
+            played = true;
+            setTimeout(() => playDemo('agent'), 400);
+            obs.unobserve(entry.target);
+          }
+        });
+      }, { threshold: 0.3 });
+      obs.observe(showcaseSection);
+    }
+  })();
+
+  // ============ CAROUSEL NAV ============
+  (function carouselNav() {
+    const track = document.getElementById('carousel-track');
+    const prev = document.getElementById('carousel-prev');
+    const next = document.getElementById('carousel-next');
+    if (!track || !prev || !next) return;
+    const scrollAmount = 280;
+    prev.addEventListener('click', () => { track.scrollBy({ left: -scrollAmount, behavior: 'smooth' }); });
+    next.addEventListener('click', () => { track.scrollBy({ left: scrollAmount, behavior: 'smooth' }); });
+  })();
+</script>
+
+</body>
+</html>

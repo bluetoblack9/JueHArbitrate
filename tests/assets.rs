@@ -56,3 +56,74 @@ fn manifest_matches_files() {
         }
     }
 }
+
+const ORIGINAL_SKILLS: &[(&str, &str)] = &[
+    (
+        "code-review",
+        "0865f3bb258cb32fe901b7d93cedb7f34b879763b86ed2fa38fc625b8c664c61",
+    ),
+    (
+        "dual-model",
+        "5a1df1b8efbfd0631b32f878fe2177f0893c68f5e57b61eee94adc49f448349e",
+    ),
+    (
+        "go-test-runner",
+        "046031aceea0f961d4330b0a9c155043775b7dafac701f8d8d43722359bcdea3",
+    ),
+    (
+        "plan-mode",
+        "6a0a7f5f79c027405b6cb9c7a784bd320833e7e57db37316f6f84807ec961c80",
+    ),
+];
+
+#[test]
+fn original_skills_and_manifest_remain_pinned() {
+    let m: serde_json::Value =
+        serde_json::from_str(&std::fs::read_to_string("assets/manifest.json").unwrap()).unwrap();
+    assert_eq!(
+        m["upstream_commit"],
+        "cb27b90d2979f5f840526100b28ade586d034df9"
+    );
+    let entries = m["entries"].as_array().unwrap();
+    let mut expected: std::collections::BTreeSet<String> = [
+        "internal/controlplane/webfrontend.html",
+        "LICENSE",
+        "NOTICE",
+    ]
+    .into_iter()
+    .map(str::to_string)
+    .collect();
+    expected.extend(
+        ORIGINAL_SKILLS
+            .iter()
+            .map(|(name, _)| format!("internal/skill/builtin/{name}.md")),
+    );
+    let actual: std::collections::BTreeSet<String> = entries
+        .iter()
+        .map(|e| e["upstream_path"].as_str().unwrap().to_string())
+        .collect();
+    assert_eq!(entries.len(), expected.len(), "禁止缺项或重复条目");
+    assert_eq!(actual, expected);
+    for (name, digest) in ORIGINAL_SKILLS {
+        let original = format!("reference/upstream/builtin-skills-original/{name}.md");
+        assert_eq!(sha256_file(&original), *digest, "归档原件漂移: {name}");
+        let source = format!("internal/skill/builtin/{name}.md");
+        let entry = entries
+            .iter()
+            .find(|e| e["upstream_path"] == source)
+            .unwrap();
+        assert_eq!(entry["original_sha256"].as_str().unwrap(), *digest);
+    }
+}
+
+#[test]
+fn original_digest_detects_modified_bytes() {
+    let (name, digest) = ORIGINAL_SKILLS[0];
+    let mut bytes = std::fs::read(format!(
+        "reference/upstream/builtin-skills-original/{name}.md"
+    ))
+    .unwrap();
+    assert_eq!(format!("{:x}", Sha256::digest(&bytes)), digest);
+    bytes.push(b'\n');
+    assert_ne!(format!("{:x}", Sha256::digest(&bytes)), digest);
+}

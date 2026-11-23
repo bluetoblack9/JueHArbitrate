@@ -1,0 +1,445 @@
+<!DOCTYPE html>
+<html lang="zh" data-theme="dark">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<meta name="theme-color" content="#0b0b0e" />
+<meta name="description" content="seek command reference — slash commands, key bindings, and CLI flags." />
+<title>Commands — seek docs</title>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  html { scroll-behavior: smooth; font-size: 16px; }
+  body {
+    font-family: "JetBrains Mono", monospace;
+    background: var(--bg);
+    color: var(--text-body);
+    line-height: 1.65;
+    -webkit-font-smoothing: antialiased;
+    overflow-x: hidden;
+  }
+  a { color: inherit; text-decoration: none; }
+  :root {
+    --bg:        #0b0b0e;
+    --surface:   #12121a;
+    --surface-2: #0e0e14;
+    --surface-3: #1a1a24;
+    --border:    #1e1e2a;
+    --text:      #d0d0d8;
+    --text-body: #d0d0d8;
+    --dim:       #6a6a7a;
+    --amber:     #f5a623;
+    --amber-dim: rgba(245,166,35,.15);
+    --teal:      #00d4ff;
+    --teal-dim:  rgba(0,212,255,.12);
+    --green:     #22c55e;
+    --red:       #ff5f56;
+    --hover-bg:  rgba(255,255,255,.04);
+    --border-dim: rgba(255,255,255,.04);
+  }
+  [data-theme="light"] {
+    --bg:        #f4f3ef;
+    --surface:   #ffffff;
+    --surface-2: #e8e7e2;
+    --surface-3: #dddcd6;
+    --border:    #dddcd6;
+    --text:      #1a1a1e;
+    --text-body: #1a1a1e;
+    --dim:       #7a7a82;
+    --amber:     #c9861a;
+    --amber-dim: rgba(201,134,26,.12);
+    --teal:      #009e9e;
+    --teal-dim:  rgba(0,158,158,.10);
+    --hover-bg:  rgba(0,0,0,.04);
+    --border-dim: rgba(0,0,0,.04);
+  }
+
+  h1, h2, h3 { font-weight: 600; letter-spacing: -.02em; line-height: 1.15; }
+  h1 { font-size: clamp(1.5rem, 4vw, 2.8rem); margin-bottom: 8px; }
+  h2 { font-size: clamp(1.2rem, 2.5vw, 1.6rem); margin-bottom: 20px; }
+  h3 { font-size: clamp(1rem, 2vw, 1.2rem); margin: 32px 0 12px; color: var(--teal); }
+  p  { max-width: 64ch; color: var(--dim); font-size: .88rem; }
+  code { font-family: "JetBrains Mono", monospace; font-size: .82rem; background: var(--surface-2); padding: 2px 6px; border-radius: 3px; color: var(--teal); }
+
+  .container { max-width: 960px; margin: 0 auto; padding: 0 24px; }
+  .section-head { margin-bottom: 16px; }
+  .label {
+    font-size: .8rem; font-weight: 500; color: var(--amber);
+    letter-spacing: .08em; text-transform: uppercase; margin-bottom: 12px;
+  }
+  .label::before { content: '$ '; }
+
+  .breadcrumb { padding: 20px 0 0; font-size: .8rem; color: var(--dim); }
+  .breadcrumb a { color: var(--teal); }
+  .breadcrumb a:hover { color: var(--amber); }
+  .page-header { padding: 40px 0 32px; border-bottom: 1px solid var(--border); margin-bottom: 36px; }
+  .page-header .subtitle { font-size: .9rem; color: var(--dim); margin-top: 6px; }
+
+  /* Tables */
+  .table-wrap {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    overflow-x: auto;
+    margin-bottom: 36px;
+    -webkit-overflow-scrolling: touch;
+  }
+  .table-wrap table {
+    width: 100%;
+    min-width: 500px;
+    border-collapse: collapse;
+    font-size: .82rem;
+  }
+  .table-wrap th {
+    background: var(--surface-3);
+    color: var(--amber);
+    text-align: left;
+    padding: 12px 14px;
+    border-bottom: 2px solid var(--border);
+    text-transform: uppercase;
+    letter-spacing: .06em;
+    font-size: .7rem;
+    white-space: nowrap;
+  }
+  .table-wrap td {
+    padding: 12px 14px;
+    border-bottom: 1px solid var(--border);
+  }
+  .table-wrap tr:last-child td { border-bottom: none; }
+  .table-wrap tr:hover td { background: rgba(0,212,255,.03); }
+  .table-wrap .cmd { color: var(--green); font-weight: 600; white-space: nowrap; }
+  .table-wrap .alias { color: var(--dim); font-size: .75rem; }
+  .table-wrap .flag-key { color: var(--teal); white-space: nowrap; }
+  .table-wrap .flag-type { color: var(--dim); font-size: .75rem; }
+  .table-wrap .flag-default { color: var(--dim); font-size: .75rem; }
+  .table-wrap .mono { font-family: "JetBrains Mono", monospace; }
+
+  /* Note box */
+  .note {
+    background: var(--surface);
+    border-left: 3px solid var(--amber);
+    padding: 16px 20px;
+    border-radius: 0 4px 4px 0;
+    font-size: .82rem;
+    color: var(--dim);
+    margin-bottom: 36px;
+  }
+  .note code { font-size: .78rem; }
+
+  .page-footer {
+    border-top: 1px solid var(--border);
+    padding: 28px 0;
+    text-align: center;
+  }
+  .page-footer a { color: var(--teal); font-size: .82rem; }
+  .page-footer a:hover { color: var(--amber); }
+  .page-footer .sep { color: var(--dim); margin: 0 10px; }
+
+  /* Utility bar */
+  .util-bar {
+    display: flex; align-items: center; gap: 6px; flex-shrink: 0;
+  }
+  .theme-toggle {
+    display: inline-flex; align-items: center; justify-content: center;
+    width: 34px; height: 34px;
+    border: 1px solid var(--border); border-radius: 4px;
+    background: transparent; cursor: pointer; font-size: .9rem;
+    transition: all .2s ease; flex-shrink: 0; color: var(--dim);
+  }
+  .theme-toggle:hover { border-color: var(--amber); color: var(--amber); }
+  .lang-toggle {
+    display: inline-flex; border: 1px solid var(--border); border-radius: 4px;
+    overflow: hidden; font-family: "JetBrains Mono", monospace;
+    font-size: .78rem; line-height: 1; flex-shrink: 0;
+  }
+  .lang-toggle span {
+    padding: 10px 14px; cursor: pointer; transition: all .2s ease;
+    color: var(--dim); user-select: none;
+  }
+  .lang-toggle span.active { background: var(--teal); color: #0b0b0e; font-weight: 700; }
+  .lang-toggle span:not(.active):hover { color: var(--teal); }
+
+  .reveal { opacity: 0; transform: translateY(20px); transition: opacity .6s ease, transform .6s ease; }
+  .reveal.visible { opacity: 1; transform: translateY(0); }
+
+  @media (max-width: 640px) {
+    .container { padding: 0 16px; }
+    .page-header { padding: 28px 0 20px; }
+    .table-wrap table { font-size: .75rem; }
+    .table-wrap th, .table-wrap td { padding: 10px 10px; }
+  }
+</style>
+</head>
+<body>
+
+<div style="display:flex;justify-content:flex-end;padding:12px 24px 0;max-width:960px;margin:0 auto;">
+  <div class="util-bar">
+    <button class="theme-toggle" id="themeToggle" aria-label="Toggle theme">☀️</button>
+    <div class="lang-toggle" id="langToggle">
+      <span data-lang-val="en">EN</span>
+      <span data-lang-val="zh">中文</span>
+    </div>
+  </div>
+</div>
+
+<div class="container">
+  <div class="breadcrumb">
+    <a href="../index.html">Home</a> / <a href="index.html">Docs</a> / <span>Commands</span>
+  </div>
+
+  <div class="page-header">
+    <h1 data-lang="en">Commands Reference</h1>
+    <h1 data-lang="zh" hidden>命令参考</h1>
+    <p class="subtitle" data-lang="en">All slash commands, key bindings, and CLI flags.</p>
+    <p class="subtitle" data-lang="zh" hidden">全部斜杠命令、快捷键和 CLI 参数。</p>
+  </div>
+
+  <!-- ============ SLASH COMMANDS ============ -->
+  <div class="reveal">
+    <h3>Slash Commands <span data-lang="en" class="label" style="display:inline;text-transform:none;margin:0;">(TUI)</span></h3>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th data-lang="en">Command</th>
+            <th data-lang="zh" hidden>命令</th>
+            <th>Usage</th>
+            <th data-lang="en">Description</th>
+            <th data-lang="zh" hidden>说明</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr><td class="cmd">/help</td><td class="alias">/help, /?</td><td>Show help topic picker, or pass a topic (all, commands, keys, about)</td></tr>
+          <tr><td class="cmd">/hooks</td><td>/hooks</td><td data-lang="en">List active shell hooks (user + project)</td><td data-lang="zh" hidden>列出活跃的 shell 钩子</td></tr>
+          <tr><td class="cmd">/clear</td><td>/clear</td><td data-lang="en">Start a fresh conversation (saves current session, opens new one, clears screen). Ctrl+L to only clear the display.</td><td data-lang="zh" hidden>开始新对话（保存当前会话、打开新会话、清屏）。Ctrl+L 仅清屏。</td></tr>
+          <tr><td class="cmd">/new</td><td>/new</td><td data-lang="en">Start a fresh conversation (same as /clear)</td><td data-lang="zh" hidden>开始新对话（同 /clear）</td></tr>
+          <tr><td class="cmd">/model</td><td>/model [id]</td><td data-lang="en">Switch model — no arg opens a picker</td><td data-lang="zh" hidden>切换模型——无参数打开选择器</td></tr>
+          <tr><td class="cmd">/effort</td><td>/effort [off|high|max]</td><td data-lang="en">Set DeepSeek reasoning effort</td><td data-lang="zh" hidden>设置推理深度</td></tr>
+          <tr><td class="cmd">/yolo</td><td>/yolo</td><td data-lang="en">Toggle --yolo (bypass permission prompts)</td><td data-lang="zh" hidden>切换 yolo 模式（跳过权限提示）</td></tr>
+          <tr><td class="cmd">/plan</td><td>/plan</td><td data-lang="en">Toggle plan mode (read-only exploration)</td><td data-lang="zh" hidden>切换规划模式（只读探索）</td></tr>
+          <tr><td class="cmd">/review</td><td>/review [branch]</td><td data-lang="en">Code review working-tree changes</td><td data-lang="zh" hidden>审查工作树变更</td></tr>
+          <tr><td class="cmd">/branch</td><td>/branch</td><td data-lang="en">Fork this session (new ID, parent link)</td><td data-lang="zh" hidden">分叉当前会话</td></tr>
+          <tr><td class="cmd">/compact</td><td>/compact</td><td data-lang="en">Summarise prior history to free up context</td><td data-lang="zh" hidden>压缩历史以释放上下文</td></tr>
+          <tr><td class="cmd">/checkpoints</td><td>/checkpoints</td><td data-lang="en">List git checkpoints for current session</td><td data-lang="zh" hidden>列出当前会话的 git 检查点</td></tr>
+          <tr><td class="cmd">/distill</td><td>/distill</td><td data-lang="en">Extract project decisions → M memory</td><td data-lang="zh" hidden>提炼会话决策到 M 记忆</td></tr>
+          <tr><td class="cmd">/skills</td><td>/skills</td><td data-lang="en">List loaded skills with source paths</td><td data-lang="zh" hidden>列出已加载的技能</td></tr>
+          <tr><td class="cmd">/skill</td><td>/skill &lt;verb&gt; [args]</td><td data-lang="en">Manage skill packages (install, uninstall, list, …)</td><td data-lang="zh" hidden>管理 Skill 包</td></tr>
+          <tr><td class="cmd">/memory</td><td>/memory &lt;verb&gt; [args]</td><td data-lang="en">Inspect project memory (list, show, search, archive)</td><td data-lang="zh" hidden>查看项目记忆</td></tr>
+          <tr><td class="cmd">/setup</td><td>/setup</td><td data-lang="en">Re-run the API-key configuration wizard</td><td data-lang="zh" hidden>重新运行 API key 配置向导</td></tr>
+          <tr><td class="cmd">/upgrade</td><td>/upgrade [--force] [--dry-run]</td><td data-lang="en">Download latest release and replace binary</td><td data-lang="zh" hidden>下载最新版本并替换二进制</td></tr>
+          <tr><td class="cmd">/exit</td><td class="alias">/exit, /quit, /q</td><td data-lang="en">Quit seek</td><td data-lang="zh" hidden>退出 seek</td></tr>
+          <tr><td class="cmd">/steer</td><td class="alias">/steer, /s</td><td data-lang="en">Interrupt and send new instructions</td><td data-lang="zh" hidden>中断当前回复并发送新指令</td></tr>
+          <tr><td class="cmd">/undo</td><td>/undo [path]</td><td data-lang="en">Undo the last write or edit</td><td data-lang="zh" hidden>撤销上一次写入或编辑</td></tr>
+          <tr><td class="cmd">/redo</td><td>/redo [path]</td><td data-lang="en">Redo a previously undone write or edit</td><td data-lang="zh" hidden>重做上一次撤销</td></tr>
+          <tr><td class="cmd">/restore</td><td>/restore [turn]</td><td data-lang="en">Restore entire working tree from a git checkpoint</td><td data-lang="zh" hidden>从 git 检查点恢复整个工作树</td></tr>
+          <tr><td class="cmd">/agents</td><td>/agents</td><td data-lang="en">List subagents for this project: spawn time, type, status, turns, tokens, description</td><td data-lang="zh" hidden>列出当前项目的子代理：派生时间、类型、状态、turn 数、token、描述</td></tr>
+          <tr><td class="cmd">/worktrees</td><td>/worktrees</td><td data-lang="en">List seek-managed git worktrees: id, branch, path (includes prior sessions)</td><td data-lang="zh" hidden>列出 seek 管理的 git worktree：id、分支、路径（含历史会话）</td></tr>
+          <tr><td class="cmd">/diagnose</td><td>/diagnose</td><td data-lang="en">Print a diagnostic report (version, OS, provider, config, session metadata) — paste into bug reports</td><td data-lang="zh" hidden>打印诊断报告（版本、OS、provider、配置、session 元数据）——粘到 bug 报告里</td></tr>
+          <tr><td class="cmd">/keys</td><td>/keys</td><td data-lang="en">Show the active keymap (incl. any ~/.seek/keybindings.toml overrides)</td><td data-lang="zh" hidden>显示当前键位映射（含 ~/.seek/keybindings.toml 覆盖）</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- ============ KEY BINDINGS ============ -->
+  <div class="reveal">
+    <h3 data-lang="en">Key Bindings</h3>
+    <h3 data-lang="zh" hidden>快捷键</h3>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th data-lang="en">Key</th>
+            <th data-lang="zh" hidden>键</th>
+            <th data-lang="en">Action</th>
+            <th data-lang="zh" hidden>操作</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr><td class="cmd">Enter</td><td data-lang="en">Send prompt</td><td data-lang="zh" hidden">发送 prompt</td></tr>
+          <tr><td>↑ / ↓</td><td data-lang="en">Recall prompt history (input empty)</td><td data-lang="zh" hidden">回滚 prompt 历史（输入框为空）</td></tr>
+          <tr><td>Esc</td><td data-lang="en">Cancel ongoing assistant response</td><td data-lang="zh" hidden">取消 assistant 响应</td></tr>
+          <tr><td>Shift+Tab</td><td data-lang="en">Cycle mode: ask → plan → yolo → ask</td><td data-lang="zh" hidden">循环切换模式</td></tr>
+          <tr><td>Ctrl+J</td><td data-lang="en">Insert newline in input</td><td data-lang="zh" hidden">输入框内换行</td></tr>
+          <tr><td>Ctrl+L</td><td data-lang="en">Clear visible screen (same as /clear)</td><td data-lang="zh" hidden">清屏（同 /clear）</td></tr>
+          <tr><td>Ctrl+R</td><td data-lang="en">Toggle reasoning visibility</td><td data-lang="zh" hidden">切换推理过程显示</td></tr>
+          <tr><td>Ctrl+C</td><td data-lang="en">Quit seek</td><td data-lang="zh" hidden">退出 seek</td></tr>
+          <tr><td>Alt+Enter</td><td data-lang="en">Interrupt with new instructions (/steer)</td><td data-lang="zh" hidden">中断并发送新指令</td></tr>
+          <tr><td>?</td><td data-lang="en">Open this help overlay (/help)</td><td data-lang="zh" hidden">打开帮助面板</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- ============ CLI SUBCOMMANDS ============ -->
+  <div class="reveal">
+    <h3 data-lang="en">CLI Subcommands</h3>
+    <h3 data-lang="zh" hidden>CLI 子命令</h3>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th data-lang="en">Command</th>
+            <th data-lang="zh" hidden>命令</th>
+            <th data-lang="en">Description</th>
+            <th data-lang="zh" hidden>说明</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr><td class="cmd">seek checkpoint list</td><td data-lang="en">List git checkpoints for the current session</td><td data-lang="zh" hidden>列出当前会话的 git 检查点</td></tr>
+          <tr><td class="cmd">seek checkpoint restore &lt;turn&gt;</td><td data-lang="en">Restore working tree from a checkpoint turn</td><td data-lang="zh" hidden>从检查点恢复工作树</td></tr>
+          <tr><td class="cmd">seek checkpoint prune</td><td data-lang="en">Remove old checkpoints (default 90 days)</td><td data-lang="zh" hidden>清理旧检查点（默认 90 天前）</td></tr>
+          <tr><td class="cmd">seek undo [path]</td><td data-lang="en">Undo the last file write/edit</td><td data-lang="zh" hidden>撤销上一次文件写入/编辑</td></tr>
+          <tr><td class="cmd">seek redo [path]</td><td data-lang="en">Redo a previously undone write/edit</td><td data-lang="zh" hidden>重做上一次撤销</td></tr>
+          <tr><td class="cmd">seek hooks list</td><td data-lang="en">List active hooks with average duration</td><td data-lang="zh" hidden>列出活跃的 hook 及平均耗时</td></tr>
+          <tr><td class="cmd">seek hooks check</td><td data-lang="en">Dry-run: show which hooks would fire for an event</td><td data-lang="zh" hidden>干跑：模拟某事件会触发的 hook</td></tr>
+          <tr><td class="cmd">seek hooks trust</td><td data-lang="en">Reset trust record for project hooks</td><td data-lang="zh" hidden>重置项目级 hook 信任记录</td></tr>
+          <tr><td class="cmd">seek hooks audit</td><td data-lang="en">Query hook execution audit log</td><td data-lang="zh" hidden>查询 hook 执行审计日志</td></tr>
+          <tr><td class="cmd">seek skill install &lt;path|url&gt;</td><td data-lang="en">Install a skill from local path, git URL, or HTTPS tarball</td><td data-lang="zh" hidden>从本地路径、git URL 或 https 压缩包安装 skill</td></tr>
+          <tr><td class="cmd">seek skill list</td><td data-lang="en">List installed skills (user + project)</td><td data-lang="zh" hidden>列出已安装 skill（用户级 + 项目级）</td></tr>
+          <tr><td class="cmd">seek skill uninstall &lt;name&gt;</td><td data-lang="en">Remove a skill from user-level installs</td><td data-lang="zh" hidden>从用户安装中卸载 skill</td></tr>
+          <tr><td class="cmd">seek skill update &lt;name&gt;</td><td data-lang="en">Re-fetch a git-installed skill</td><td data-lang="zh" hidden>重新拉取 git 安装的 skill</td></tr>
+          <tr><td class="cmd">seek skill stats [--top N]</td><td data-lang="en">Show skill call counts ranked by frequency</td><td data-lang="zh" hidden>按调用频率显示 skill 排行</td></tr>
+          <tr><td class="cmd">seek memory list</td><td data-lang="en">List M-memory entries for current project</td><td data-lang="zh" hidden>列出当前项目的 M 记忆条目</td></tr>
+          <tr><td class="cmd">seek memory show &lt;name&gt;</td><td data-lang="en">Print full content of an M-memory entry</td><td data-lang="zh" hidden>打印某条 M 记忆全文</td></tr>
+          <tr><td class="cmd">seek memory search &lt;query&gt;</td><td data-lang="en">Search M-memory by keyword (tagline + body)</td><td data-lang="zh" hidden>按关键词搜索 M 记忆</td></tr>
+          <tr><td class="cmd">seek memory archive &lt;name&gt;</td><td data-lang="en">Archive a stale entry (preserved on disk, removed from index)</td><td data-lang="zh" hidden>归档某条记忆（保留磁盘，移出索引）</td></tr>
+          <tr><td class="cmd">seek cron create [flags] &lt;prompt&gt;</td><td data-lang="en">Register a scheduled prompt (--at @daily / @every 1h)</td><td data-lang="zh" hidden>注册定时任务（--at @daily / @every 1h）</td></tr>
+          <tr><td class="cmd">seek cron list [--json]</td><td data-lang="en">List registered cron jobs with next-run time</td><td data-lang="zh" hidden>列出已注册 cron 任务及下次触发时间</td></tr>
+          <tr><td class="cmd">seek cron run &lt;name&gt;</td><td data-lang="en">Fire a cron job immediately (bypass schedule)</td><td data-lang="zh" hidden>立即触发某 cron 任务（绕过调度）</td></tr>
+          <tr><td class="cmd">seek cron delete &lt;name&gt;</td><td data-lang="en">Remove a cron job</td><td data-lang="zh" hidden>删除 cron 任务</td></tr>
+          <tr><td class="cmd">seek cron tick</td><td data-lang="en">OS-scheduler entry point — scan + fire all due jobs (called every 1 min by launchd/systemd/Task Scheduler)</td><td data-lang="zh" hidden>OS 调度器入口——扫描并触发所有到期任务（launchd/systemd/Task Scheduler 每分钟调用）</td></tr>
+          <tr><td class="cmd">seek worktree list</td><td data-lang="en">List seek-managed worktrees (includes externally-created ones flagged "external")</td><td data-lang="zh" hidden>列出 seek 管理的 worktree（标 "external" 表示用户手动创建）</td></tr>
+          <tr><td class="cmd">seek worktree gc</td><td data-lang="en">Reap orphan worktrees + dangling refs from prior crashes</td><td data-lang="zh" hidden>回收孤立 worktree + dangling refs</td></tr>
+          <tr><td class="cmd">seek keys list</td><td data-lang="en">List active key bindings (defaults + user overrides)</td><td data-lang="zh" hidden>列出当前键位绑定（默认 + 用户覆盖）</td></tr>
+          <tr><td class="cmd">seek keys check</td><td data-lang="en">Lint ~/.seek/keybindings.toml for conflicts and unknown actions</td><td data-lang="zh" hidden>检查 ~/.seek/keybindings.toml 是否有冲突或未知动作</td></tr>
+          <tr><td class="cmd">seek keys actions</td><td data-lang="en">List all bindable actions (the actions a user override can target)</td><td data-lang="zh" hidden>列出所有可绑定的动作</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="note">
+      <span data-lang="en">💡 Many subcommands have TUI slash-command equivalents: <code>/checkpoints</code>, <code>/restore</code>, <code>/undo</code>, <code>/redo</code>, <code>/hooks</code>, <code>/skill</code>, <code>/memory</code>, <code>/agents</code>, <code>/worktrees</code>, <code>/keys</code>. Use either path interchangeably.</span>
+      <span data-lang="zh" hidden>💡 多数子命令有 TUI 斜杠命令等价：<code>/checkpoints</code>、<code>/restore</code>、<code>/undo</code>、<code>/redo</code>、<code>/hooks</code>、<code>/skill</code>、<code>/memory</code>、<code>/agents</code>、<code>/worktrees</code>、<code>/keys</code>。两条路径可互换使用。</span>
+    </div>
+  </div>
+
+  <!-- ============ CLI FLAGS ============ -->
+  <div class="reveal">
+    <h3 data-lang="en">CLI Flags</h3>
+    <h3 data-lang="zh" hidden>命令行参数</h3>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th data-lang="en">Flag</th>
+            <th data-lang="zh" hidden>参数</th>
+            <th>Type</th>
+            <th>Default</th>
+            <th data-lang="en">Description</th>
+            <th data-lang="zh" hidden>说明</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr><td class="flag-key">-p</td><td>string</td><td class="flag-default">""</td><td data-lang="en">Prompt text; non-empty → print mode</td><td data-lang="zh" hidden>提示文本；非空则进入打印模式</td></tr>
+          <tr><td class="flag-key">-model</td><td>string</td><td class="flag-default">""</td><td data-lang="en">Model ID override</td><td data-lang="zh" hidden>模型 ID 覆盖</td></tr>
+          <tr><td class="flag-key">-max-turns</td><td>int</td><td class="flag-default">200</td><td data-lang="en">Agent loop safety bound</td><td data-lang="zh" hidden">Agent 循环安全上限</td></tr>
+          <tr><td class="flag-key">-max-tokens</td><td>int</td><td class="flag-default">0</td><td data-lang="en">Completion token cap (0 → default 16384)</td><td data-lang="zh" hidden">输出 token 上限</td></tr>
+          <tr><td class="flag-key">-auto-continue</td><td>bool</td><td class="flag-default">false</td><td data-lang="en">Auto-inject 'continue' on text-only turns</td><td data-lang="zh" hidden">自动注入 'continue'</td></tr>
+          <tr><td class="flag-key">-yolo</td><td>bool</td><td class="flag-default">false</td><td data-lang="en">Allow bash + writes outside CWD without prompting</td><td data-lang="zh" hidden">允许 bash 和写入当前目录外</td></tr>
+          <tr><td class="flag-key">-plan</td><td>bool</td><td class="flag-default">false</td><td data-lang="en">Read-only: no bash/writes/edits</td><td data-lang="zh" hidden">只读模式：禁止 bash/写入/编辑</td></tr>
+          <tr><td class="flag-key">-json</td><td>bool</td><td class="flag-default">false</td><td data-lang="en">Emit agent events as JSONL on stdout</td><td data-lang="zh" hidden">以 JSONL 格式输出事件</td></tr>
+          <tr><td class="flag-key">-resume</td><td>string</td><td class="flag-default">""</td><td data-lang="en">Load a saved session by ID</td><td data-lang="zh" hidden">通过 ID 恢复会话</td></tr>
+          <tr><td class="flag-key">-continue</td><td>bool</td><td class="flag-default">false</td><td data-lang="en">Resume most recent session</td><td data-lang="zh" hidden>恢复最近的会话</td></tr>
+          <tr><td class="flag-key">-no-save</td><td>bool</td><td class="flag-default">false</td><td data-lang="en">Ephemeral session (don't persist)</td><td data-lang="zh" hidden>不持久化会话</td></tr>
+          <tr><td class="flag-key">-list</td><td>bool</td><td class="flag-default">false</td><td data-lang="en">List saved sessions and exit</td><td data-lang="zh" hidden>列出保存的会话</td></tr>
+          <tr><td class="flag-key">-no-project-md</td><td>bool</td><td class="flag-default">false</td><td data-lang="en">Skip AGENTS.md auto-load</td><td data-lang="zh" hidden>跳过 AGENTS.md 自动加载</td></tr>
+          <tr><td class="flag-key">-provider</td><td>string</td><td class="flag-default">"deepseek"</td><td data-lang="en">LLM provider (deepseek | anthropic | openai | gemini | compatible)</td><td data-lang="zh" hidden>LLM 提供商</td></tr>
+          <tr><td class="flag-key">-base-url</td><td>string</td><td class="flag-default">""</td><td data-lang="en">Base URL for --provider=compatible</td><td data-lang="zh" hidden>兼容端点的 Base URL</td></tr>
+          <tr><td class="flag-key">-theme</td><td>string</td><td class="flag-default">"auto"</td><td data-lang="en">Color theme (auto | dark | light)</td><td data-lang="zh" hidden>颜色主题</td></tr>
+          <tr><td class="flag-key">-rpc</td><td>bool</td><td class="flag-default">false</td><td data-lang="en">JSON-RPC 2.0 server over stdio</td><td data-lang="zh" hidden>JSON-RPC 2.0 服务模式</td></tr>
+          <tr><td class="flag-key">-version</td><td>bool</td><td class="flag-default">false</td><td data-lang="en">Print version info</td><td data-lang="zh" hidden>打印版本信息</td></tr>
+          <tr><td class="flag-key">-upgrade</td><td>bool</td><td class="flag-default">false</td><td data-lang="en">Download latest release and replace binary</td><td data-lang="zh" hidden>下载最新版本并替换</td></tr>
+          <tr><td class="flag-key">-upgrade-force</td><td>bool</td><td class="flag-default">false</td><td data-lang="en">Force upgrade even for dev builds</td><td data-lang="zh" hidden>强制升级开发版本</td></tr>
+          <tr><td class="flag-key">-upgrade-dry-run</td><td>bool</td><td class="flag-default">false</td><td data-lang="en">Download + verify, do not replace</td><td data-lang="zh" hidden">下载 + 校验，不替换</td></tr>
+          <tr><td class="flag-key">-upgrade-check</td><td>bool</td><td class="flag-default">false</td><td data-lang="en">Check for newer release, never modify</td><td data-lang="zh" hidden">检查新版本，不改动</td></tr>
+          <tr><td class="flag-key">-dream</td><td>bool</td><td class="flag-default">false</td><td data-lang="en">M→L distillation scan (read-only)</td><td data-lang="zh" hidden">M→L 蒸馏扫描（只读）</td></tr>
+          <tr><td class="flag-key">-dream-write</td><td>bool</td><td class="flag-default">false</td><td data-lang="en">Write dream candidates to soul.md</td><td data-lang="zh" hidden">写入 dream 候选到 soul.md</td></tr>
+          <tr><td class="flag-key">-no-suggest</td><td>bool</td><td class="flag-default">false</td><td data-lang="en">Disable suggested-reply predictor + UI placeholder (v4 柱 D)</td><td data-lang="zh" hidden>禁用建议回复预测 + UI 占位（v4 柱 D）</td></tr>
+          <tr><td class="flag-key">-no-cron-tick</td><td>bool</td><td class="flag-default">false</td><td data-lang="en">Skip startup cron auto-tick (jobs still fire via OS scheduler)</td><td data-lang="zh" hidden>跳过启动时 cron 自动 tick（不影响 OS 调度器触发）</td></tr>
+          <tr><td class="flag-key">-keep-checkpoints</td><td>bool</td><td class="flag-default">false</td><td data-lang="en">Preserve session checkpoints/ across session end (default: cleaned)</td><td data-lang="zh" hidden>会话结束时保留 checkpoints/（默认清理）</td></tr>
+          <tr><td class="flag-key">-install</td><td>bool</td><td class="flag-default">false</td><td data-lang="en">Add seek to user PATH (Windows)</td><td data-lang="zh" hidden>把 seek 添加到用户 PATH（Windows）</td></tr>
+          <tr><td class="flag-key">-benchmark</td><td>string</td><td class="flag-default">""</td><td data-lang="en">Run benchmark task (self-hosting | fim-patch) and report metrics</td><td data-lang="zh" hidden>跑基准测试任务并报告指标</td></tr>
+          <tr><td class="flag-key">-benchmark-out</td><td>string</td><td class="flag-default">""</td><td data-lang="en">With -benchmark: write JSON report to this file (default: stdout)</td><td data-lang="zh" hidden>与 -benchmark 配合：报告写入文件（默认 stdout）</td></tr>
+          <tr><td class="flag-key">-provider-name</td><td>string</td><td class="flag-default">"Compatible"</td><td data-lang="en">Display name for --provider=compatible</td><td data-lang="zh" hidden>--provider=compatible 的显示名</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="note">
+      <span data-lang="en">💡 Use <code>seek --help</code> for the most up-to-date flag list. The table above reflects the source at <code>cmd/seek/main.go</code>. Reply language follows your input — there is no <code>/lang</code> or <code>--lang</code>.</span>
+      <span data-lang="zh" hidden>💡 使用 <code>seek --help</code> 获取最新参数列表。上表反映 <code>cmd/seek/main.go</code> 中的定义。回复语言跟随你的输入，无 <code>/lang</code> 或 <code>--lang</code>。</span>
+    </div>
+  </div>
+
+  <div class="page-footer">
+    <a href="index.html">← Back to docs</a>
+    <span class="sep">·</span>
+    <a href="../index.html">Home</a>
+  </div>
+</div>
+
+<script>
+  // ============ THEME TOGGLE ============
+  let currentTheme = localStorage.getItem('seek-theme') || 'dark';
+  const themeBtn = document.getElementById('themeToggle');
+  function setTheme(theme) {
+    currentTheme = theme;
+    localStorage.setItem('seek-theme', theme);
+    document.documentElement.setAttribute('data-theme', theme);
+    themeBtn.textContent = theme === 'dark' ? '☀️' : '🌙';
+    const meta = document.querySelector('meta[name="theme-color"]');
+    if (meta) meta.content = theme === 'dark' ? '#0b0b0e' : '#f4f3ef';
+  }
+  setTheme(currentTheme);
+  themeBtn.addEventListener('click', () => {
+    setTheme(currentTheme === 'dark' ? 'light' : 'dark');
+  });
+
+  // ============ LANGUAGE TOGGLE ============
+  let currentLang = localStorage.getItem('seek-lang') || 'zh';
+  function setLang(lang) {
+    currentLang = lang;
+    localStorage.setItem('seek-lang', lang);
+    document.documentElement.lang = lang === 'en' ? 'en' : 'zh';
+    document.querySelectorAll('[data-lang]').forEach(el => {
+      el.hidden = el.getAttribute('data-lang') !== lang;
+    });
+    updateSegments(lang);
+  }
+  function updateSegments(lang) {
+    document.querySelectorAll('#langToggle span').forEach(s => {
+      s.classList.toggle('active', s.getAttribute('data-lang-val') === lang);
+    });
+  }
+  setLang(currentLang);
+  document.querySelectorAll('#langToggle span').forEach(s => {
+    s.addEventListener('click', () => {
+      const lang = s.getAttribute('data-lang-val');
+      if (lang !== currentLang) setLang(lang);
+    });
+  });
+
+  const observer = new IntersectionObserver((entries) => {
+    entries.forEach(entry => {
+      if (entry.isIntersecting) {
+        entry.target.classList.add('visible');
+        observer.unobserve(entry.target);
+      }
+    });
+  }, { threshold: 0.15 });
+  document.querySelectorAll('.reveal').forEach(el => observer.observe(el));
+</script>
+
+  <script defer src="search-index.js"></script>
+  <script defer src="search.js"></script>
+</body>
+</html>

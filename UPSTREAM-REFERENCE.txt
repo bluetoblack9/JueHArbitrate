@@ -1,0 +1,7 @@
+upstream_repo: https://github.com/whyiyhw/seek
+upstream_commit: cb27b90d2979f5f840526100b28ade586d034df9
+upstream_describe: v0.12.0-5-gcb27b90
+local_reference: /Users/deep/Documents/workspaceB/openC/seek
+purpose: 只读源码溯源。不是测试运行基线，不是数据兼容基线，不是升级源。
+policy: 不编译/运行 Go；不执行 Go 测试；不采集 Go 输出；不做双二进制对照。
+review_date: 2026-11-20

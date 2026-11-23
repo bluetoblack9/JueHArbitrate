@@ -1,0 +1,73 @@
+# whyiyhw/seek 项目叙事稿
+
+> 数据截至 2026-11-17（北京）；负责人会话（agent，2026-11-12 用户全权移交）。
+> 模板与写作纪律见 butler 仓 `docs/narrative/README.md`；事件 `#N` 指 butler 事件 id（memory_search 可查）。
+
+## 目标
+
+**以 projects 表为准**（`project_get whyiyhw/seek`；2026-11-17 v8 D1 拍板改写，拿掉
+「能力对标 Claude Code」）：把 seek 从终端 coding agent 核心迭代成**能自我进化的本地
+agent 平台**，形态走 v8 论题——**薄内核 + 外围按需 + 用证据筛形态**（内核只留边界/
+记录/裁判/缓存拼装与基础工具，其余外置；每个零件可度量、可拆掉对照）：① 成本断崖
+（DeepSeek-first）；② 多端通用（`Frontend` 端口，飞书第一个）；③ 自进化闭环
+（失败 → eval → 修复 → 发布）。完成标准（v8 口径）：一次过率 / 每任务花费 / 人审
+分钟有基线；有裸核对照表；内核违例数可追（`scripts/kernel-deps.sh`）。治理层是 butler（卡片/派发/验证/合并），
+seek 是执行与产品层；seek 自身也通过 paseo provider 车道回到 butler 的调度池。
+**不做公开跑分竞赛**（用户拍板 #2575：无意义；eval 降位为内部回归工具）。
+
+## 现状
+
+- **一夜平台化落地（11-12 夜至 11-13 晨，事件 #2618/#2660）**：control-plane 装配线
+  M1a→M1b→M2→M3→M6a→M7a **全部交付进 main**（类型层/bindings、serve 骨架、路由指令、
+  执行器含自愈、生命周期与 build-tag 隔离、guide 文档 + Telegram 纸面验证）。
+  **M4/M5（飞书 adapter）2026-11-13 用户拍板撤销**：不绑定具体渠道，Frontend 端口
+  已是资产，首个 frontend 选型开放（web/HTTP 或任意聊天渠道按端口后续加）。
+  与 CC 对照的 roadmap 驱动已降级为参考（comparison.md 改造完成）。
+- **token 三车道落地**：GLM 订阅车道进 main（provider 注册 + pricing 三口价），
+  真 key 烟测全链通且 **cache_hit_tokens=10944**——GLM 前缀缓存与 seek 缓存纪律咬合
+  （#2897）；DeepSeek 关键点验证口径不变。
+- **自进化内环首轮收成**：eval 14→20 例（3 契约回归 + 3 pitfall 衍生，pitfall→eval
+  管道落地）；skill 自动蒸馏设计稿就绪（feature-skill-distill.md，四层新颖性漏斗 +
+  人审闸）；dsh 事件溯源评估结论=approval 全量 fold 不值得、resume 缝隙部分做
+  （notes-event-sourcing-adoption.md）。
+- **butler 侧**：验证车道坑 8 越界问题修复（c_jnyf3y，机械面收进调度器）、Stop hook
+  多仓误报修复（c_f3wwqq）、go vet 清零；剩余一张 c_hi3lv5（验证 verdict 口径改造）
+  拟人判 ask_human 等用户拍板。
+- 顺手修掉：permission symlink CWD 误判（c_uh2x4q）。
+
+## 关键决策
+
+- **平台化取代跑分对标**（#2575，2026-11-12 用户拍板）：目标=自我进化平台 + CC 能力
+  + 更便宜 + 多端；eval 只做内部回归。
+- **移交 agent 全权管理**（#2575）：butler 当治理层，开发走卡片/派发/验证流程；
+  本仓 AGENTS.md 纪律（pitfalls、doc-budget、eval-first）不变。
+- **参考 dsh 不照抄**（`docs/dsh-analysis.md` §0/§8）：取「事件溯源 ⇒ 前缀缓存稳定」
+  的不变量思想与可替换缝；弃 226 包 monorepo 与运行时组装复杂度——
+  seek 的优势正是编译期纪律 + 单二进制。
+- **多端走 sidecar 不动核心**（feature-remote-control-plane.md D-C1）：
+  常驻只活在 `seek serve`，对零-daemon 铁律做有意、隔离的偏离。
+
+## 否掉的方案
+
+- **跑分超越作为目标**：用户否（#2575）——没有意义。
+- **无脑抄 dsh 插件框架**：dsh-analysis.md 结论——两条赛道（官方云 harness vs 本地
+  单机开发者），编译期注册是 seek 的护城河不是债。
+- **把常驻塞进核心 agent loop**：feature-remote-control-plane.md §1.4，违背 v5 零-daemon。
+- **记分牌式同题对跑（公开口径）**：#2573 待拍版方案的核心卖点，#2575 拍板后降位为
+  内部回归，不对外宣传。
+
+## 下一步
+
+- **多端**：M4/M5 已撤销（不绑飞书）；首个 frontend 选型开放——候选自建 web/HTTP
+  最小 frontend（零外部依赖），未排期；新 adapter 按端口另开卡。
+- **paseo 车道**：两缺口已落地进 main——`session/new` cwd 锚定（c_bnjrw5：`os.Chdir`
+  + `Policy.Reanchor` 双锚定，工具层两条 cwd 约定一起切）、`SEEK_ACP_YOLO` 无头权限
+  开关（c_rewul5：ACP 车道 flag 全不解析，env 在 sysprompt 之前并进 `initialPref`）；
+  paseo provider 块已接通并冒烟，butler drive `--provider seek` 可派单。**本卡
+  （c_vv2mde）即车道首单**——worktree→干活→commit→`.butler-commit.md` 写回全流程
+  跑通即验收，之后纳入常规调度池。剩余 backlog：session 多路复用、`session/load`
+  恢复、MCP 透传（docs/guide-zed.md §5 表）。
+- **自进化**：skill-distill 从设计转实现（开卡时机：飞书线或 paseo 线任一收口后）；
+  eval 用例随每次 dogfood 失败持续扩容。
+- **治理**：c_hi3lv5 已拍板（改，#2977），实现卡 c_gk6cb2 在飞；paseo 两缺口卡
+  （c_bnjrw5/c_rewul5）已随 paseo 车道落地进 main。
