@@ -127,3 +127,54 @@ fn original_digest_detects_modified_bytes() {
     bytes.push(b'\n');
     assert_ne!(format!("{:x}", Sha256::digest(&bytes)), digest);
 }
+
+/// (活动文件, 原件文件, 允许替换对)
+const ADAPTED: &[(&str, &str, &[(&str, &str)])] = &[
+    (
+        "assets/builtin-skills/code-review.md",
+        "reference/upstream/builtin-skills-original/code-review.md",
+        &[("seek is a local tool", "arbitrate is a local tool")],
+    ),
+    (
+        "assets/builtin-skills/go-test-runner.md",
+        "reference/upstream/builtin-skills-original/go-test-runner.md",
+        &[
+            (
+                "# Running Go tests in seek",
+                "# Running Go tests in arbitrate",
+            ),
+            (
+                "This codebase is Go, with a CI policy of `go test -race ./...` on three OSes. When the user asks about tests, follow this workflow:",
+                "This codebase is Rust, with a CI policy of `cargo test --workspace --locked` on three OSes. When the user asks about Go tests, follow this workflow:",
+            ),
+        ],
+    ),
+    (
+        "assets/builtin-skills/plan-mode.md",
+        "reference/upstream/builtin-skills-original/plan-mode.md",
+        &[
+            ("`seek -resume <id>`", "`arbitrate -resume <id>`"),
+            ("seek's bash tool", "arbitrate's bash tool"),
+            ("a seek-side bug", "an arbitrate-side bug"),
+        ],
+    ),
+    (
+        "assets/builtin-skills/dual-model.md",
+        "reference/upstream/builtin-skills-original/dual-model.md",
+        &[],
+    ),
+];
+
+#[test]
+fn skill_adaptation_is_exactly_allowed_pairs() {
+    for (active, original, pairs) in ADAPTED {
+        let orig = std::fs::read_to_string(original).unwrap();
+        let mut expected = orig.clone();
+        for (from, to) in *pairs {
+            assert!(expected.contains(from), "原件应含待替换文本: {from}");
+            expected = expected.replace(from, to);
+        }
+        let actual = std::fs::read_to_string(active).unwrap();
+        assert_eq!(actual, expected, "适配差异超出允许范围: {active}");
+    }
+}

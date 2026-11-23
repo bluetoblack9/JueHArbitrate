@@ -72,6 +72,6 @@ Only when the prompt says `--comment` is set. Requires the `gh` CLI, authenticat
 
 ## Anti-goals
 
-- No cloud "ultra" multi-agent review — seek is a local tool; that mode is out of scope.
+- No cloud "ultra" multi-agent review — arbitrate is a local tool; that mode is out of scope.
 - No custom lint rulesets — that is `pre-commit` / IDE-linter territory.
 - Never auto-write without `--fix`, and never bypass the propose / per-call gate even with `--fix`.

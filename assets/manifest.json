@@ -19,8 +19,8 @@
     { "upstream_path": "internal/skill/builtin/code-review.md",
       "original_sha256": "0865f3bb258cb32fe901b7d93cedb7f34b879763b86ed2fa38fc625b8c664c61",
       "active_path": "assets/builtin-skills/code-review.md",
-      "active_sha256": "0865f3bb258cb32fe901b7d93cedb7f34b879763b86ed2fa38fc625b8c664c61",
-      "adaptation": "none", "reason": "Task 6 适配后更新" },
+      "active_sha256": "8ab4d4f3be13aa779cfec1a313e0aa2ba682b8c06bb61c7a2f9f26c9e1cc2432",
+      "adaptation": "minimal-brand", "reason": "产品身份 seek→arbitrate（1 处）" },
     { "upstream_path": "internal/skill/builtin/dual-model.md",
       "original_sha256": "5a1df1b8efbfd0631b32f878fe2177f0893c68f5e57b61eee94adc49f448349e",
       "active_path": "assets/builtin-skills/dual-model.md",
@@ -29,12 +29,12 @@
     { "upstream_path": "internal/skill/builtin/go-test-runner.md",
       "original_sha256": "046031aceea0f961d4330b0a9c155043775b7dafac701f8d8d43722359bcdea3",
       "active_path": "assets/builtin-skills/go-test-runner.md",
-      "active_sha256": "046031aceea0f961d4330b0a9c155043775b7dafac701f8d8d43722359bcdea3",
-      "adaptation": "none", "reason": "Task 6 适配后更新" },
+      "active_sha256": "af7be7404e85359f8f3fe020a5af3a76284ff22e85465184ec32abef50b9a3b3",
+      "adaptation": "minimal-brand", "reason": "标题产品身份 + 自指语言/CI 事实（2 处，总纲 v2.8）" },
     { "upstream_path": "internal/skill/builtin/plan-mode.md",
       "original_sha256": "6a0a7f5f79c027405b6cb9c7a784bd320833e7e57db37316f6f84807ec961c80",
       "active_path": "assets/builtin-skills/plan-mode.md",
-      "active_sha256": "6a0a7f5f79c027405b6cb9c7a784bd320833e7e57db37316f6f84807ec961c80",
-      "adaptation": "none", "reason": "Task 6 适配后更新" }
+      "active_sha256": "9b7f93ecd72aad9b127a1a89379186e548e40f912dd32dbed53905225ea28a77",
+      "adaptation": "minimal-brand", "reason": "命令名与产品身份（3 处）" }
   ]
 }

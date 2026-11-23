@@ -28,7 +28,7 @@ plan(start=2)      // before step 2
 …
 ```
 
-This is **load-bearing for resume**: when the user runs `seek -resume <id>`, plan state is reconstructed from these tool calls. Skipping them means the resumed session sees an empty task list and the model has to re-derive "where am I" from chat. In `[plan: approved] (auto-approve-per-step)` mode, `plan(start=N)` is also what unlocks the per-step pre-approval gate — without calling it, every write still prompts y/N.
+This is **load-bearing for resume**: when the user runs `arbitrate -resume <id>`, plan state is reconstructed from these tool calls. Skipping them means the resumed session sees an empty task list and the model has to re-derive "where am I" from chat. In `[plan: approved] (auto-approve-per-step)` mode, `plan(start=N)` is also what unlocks the per-step pre-approval gate — without calling it, every write still prompts y/N.
 
 Use `skip` sparingly — for a single step the user explicitly waved off. For bigger scope changes, summarise progress and call `propose` again (see Step 4 below).
 
@@ -126,7 +126,7 @@ The bash whitelist in plan-analyze is narrow on purpose. These are the four ways
 
 | ❌ Don't | ✅ Do | Why |
 |---------|------|-----|
-| `bash("cd /path && go vet ./...")` | `bash("go vet ./...")` | seek's bash tool already runs from the project root — `cd` is redundant AND introduces `&&` which is a denied metacharacter |
+| `bash("cd /path && go vet ./...")` | `bash("go vet ./...")` | arbitrate's bash tool already runs from the project root — `cd` is redundant AND introduces `&&` which is a denied metacharacter |
 | `bash("git log --oneline -10")` | use the dedicated `git` tool with subcommand `log` | the `git` tool is plan-mode allowed (subcommand whitelist enforced in the tool); going through bash means a separate whitelist check that doesn't include git |
 | `bash("go test ./...")` | `bash("go vet ./...")` or `bash("go build -n ./...")` | `go test` runs code and writes the build cache — has side effects. `go vet` and `go build -n` are pure static analysis / dry-run |
 | `bash("ls | grep foo")` or `bash("cmd > /tmp/x")` | call the `grep` tool directly; for "compute X then look at it" sequence two tool calls instead of one piped command | shell metacharacters (`;`, `&&`, `||`, `|`, `>`, `` ` ``, `$(`, `${`, newline) are denied in plan-analyze regardless of the rest of the command, even if the individual subcommands would be whitelisted |
@@ -150,7 +150,7 @@ Sometimes the right answer really is `curl` / `docker` / `kubectl` / `go test` /
 
 ❌ **Never tell the user to "restart with `--yolo`"**. That destroys session state (memory, plan progress, message history). The `--yolo` CLI flag is for starting fresh sessions, not for escaping plan-analyze mid-session. Use `Shift+Tab` or `/yolo` in-session toggle instead.
 
-❌ **Don't suggest header workarounds** for `webfetch` issues. webfetch's request headers are fixed (`User-Agent` / `Accept` / `Accept-Encoding` all hardcoded) precisely so the model can't shape requests in ways that bypass the SSRF gate. If `webfetch` returns weird content (encoding issues, content-type rejected, etc.), that's a seek-side bug to report, not something to work around with curl flags.
+❌ **Don't suggest header workarounds** for `webfetch` issues. webfetch's request headers are fixed (`User-Agent` / `Accept` / `Accept-Encoding` all hardcoded) precisely so the model can't shape requests in ways that bypass the SSRF gate. If `webfetch` returns weird content (encoding issues, content-type rejected, etc.), that's an arbitrate-side bug to report, not something to work around with curl flags.
 
 ❌ **Don't retry the same denied command with cosmetic changes** (rename a variable, add a comment, etc.). The deny is structural; superficial edits don't change the verdict. Read the `Hint:` clause in the error message — it tells you what to actually change.
 
