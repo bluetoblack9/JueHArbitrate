@@ -9,3 +9,4 @@
 - CI 三平台远端结果：首次 push 后确认；本地门禁与远端 CI 分别登记真实结果，尚未运行记未验证
 - 旧 Go 文件/记录兼容测试：明确排除（总纲约束 4/11），不移植
 - YAML crate 定案：不引入（计划 2 D2-5）——上游 frontmatter 为手写 4 形状解析器，Rust 移植 std-only
+- agenttypes load 逐条目目录 IO 错误静默跳过（filter_map(Result::ok)）：计划 2 Task 6 评审 Important 发现，用户裁决按计划接受——上游 Go os.ReadDir 整目录报错，Rust 单条目错误罕见且新分支不可移植测试；需加强启动诊断时改 match 计入 errors
