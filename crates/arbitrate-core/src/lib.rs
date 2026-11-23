@@ -4,4 +4,5 @@ pub mod agenttypes;
 pub mod config;
 pub mod frontmatter;
 pub mod paths;
+pub mod pricing;
 pub mod types;
