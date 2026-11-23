@@ -1,0 +1,46 @@
+{
+  "fixtures": [
+    {
+      "path": "cli-contract.json",
+      "schema_version": "cli-contract/1",
+      "sha256": "754c96042fd77694620da4db130f1a8bc8e25c2080892608899b3034a7b6357b",
+      "spec_source": "main.go@cb27b90 顶层 flag 与分发静态整理"
+    },
+    {
+      "path": "cli-subcommands.json",
+      "schema_version": "cli-subcommands/1",
+      "sha256": "aa0b7280ac1473c52daea1a41772c748b2327dfa28cfa7b8d094ca5ab202b19a",
+      "spec_source": "锁定 commit 各 CLI 解析器；docs/cli-source-audit.md"
+    },
+    {
+      "path": "events/permission-denied.jsonl",
+      "schema_version": "event-fixture/1",
+      "sha256": "3175719a9811fcd29f02b2e33232a06d771f6ae35886b75bc7f2f0d8bd6f3f02",
+      "spec_source": "events.go + 总纲约束 6 拒绝即结果"
+    },
+    {
+      "path": "events/plain-text.jsonl",
+      "schema_version": "event-fixture/1",
+      "sha256": "ff123bb9bbdc095a58b1b826c1a91e470f1ce7286c47c45f91b33b210f642aab",
+      "spec_source": "events.go + 架构 §1 纯文本场景"
+    },
+    {
+      "path": "events/plan.jsonl",
+      "schema_version": "event-fixture/1",
+      "sha256": "7dbc50a86d5a01d140093043cf912f52a1e74a298e6c145d295a71e1b70b3132",
+      "spec_source": "events.go Plan* 事件 + feature-plan-mode PRD"
+    },
+    {
+      "path": "events/tool-call.jsonl",
+      "schema_version": "event-fixture/1",
+      "sha256": "93e6fd92b5039c9688de78211d7ff3dc2444e2de08e8a4e70ff2c6c3a9a7c0d9",
+      "spec_source": "events.go + 架构 §4 工具续轮场景"
+    },
+    {
+      "path": "mcp-script.json",
+      "schema_version": "mcp-mock/1",
+      "sha256": "746b3b507eec7c272130901bdf393e206f8c918a42819b42ffba6f3ae3b8b725",
+      "spec_source": "M0.2 mock MCP；上游协议只读参考"
+    }
+  ]
+}
