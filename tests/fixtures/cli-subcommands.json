@@ -1,0 +1,2300 @@
+{
+  "source_commit": "cb27b90d2979f5f840526100b28ade586d034df9",
+  "commands": [
+    {
+      "command": "skill install",
+      "aliases": [],
+      "owner": "M2",
+      "sources": [
+        "internal/skillcli/skillcli.go:runSkillCmd:35-63 (verb install:42-43)",
+        "internal/skillcli/skillcli.go:cmdSkillInstall:94-153 (FlagSet:95)",
+        "cmd/seek/main.go:run:858-860 (pre-parse dispatch)",
+        "cmd/seek/main.go:main:774-791 (exit mapping)"
+      ],
+      "flags": [
+        { "name": "name", "aliases": [], "type": "string", "declared_default": "", "repeatable": false, "help": "override the skill name (default: SKILL.md frontmatter or directory basename)" },
+        { "name": "force", "aliases": [], "type": "bool", "declared_default": false, "repeatable": false, "help": "replace an existing skill of the same name" },
+        { "name": "project", "aliases": [], "type": "bool", "declared_default": false, "repeatable": false, "help": "install into <cwd>/.seek/skills/ instead of ~/.seek/skills/" },
+        { "name": "subpath", "aliases": [], "type": "string", "declared_default": "", "repeatable": false, "help": "for git URLs: subdirectory inside the repo that holds the skill" },
+        { "name": "sha256", "aliases": [], "type": "string", "declared_default": "", "repeatable": false, "help": "for HTTPS archives: expected sha256 of the downloaded archive" },
+        { "name": "type", "aliases": [], "type": "string", "declared_default": "", "repeatable": false, "help": "force source type: local|git|https (default: infer from <source>)" }
+      ],
+      "positionals": {
+        "entries": [ { "name": "<source>", "required": true, "variadic": false } ],
+        "count_rule": "fs.NArg() != 1 -> usage + error (skillcli.go:121-124)",
+        "extra_positionals": "rejected",
+        "notes": "local path / git URL / HTTPS archive; type inferred unless --type given (skillcli.go:134-145)"
+      },
+      "parsing": {
+        "mechanism": "flag.FlagSet",
+        "flagset_name": "seek skill install",
+        "error_handling": "ContinueOnError",
+        "output": "stderr (fs.SetOutput, skillcli.go:96)",
+        "usage_style": "custom fs.Usage prints source kinds + PrintDefaults to stderr (skillcli.go:97-109)",
+        "positional_termination": "Go flag.Parse stops at first non-flag; flags must precede <source>; no reorder helper",
+        "dashdash": "supported by flag.Parse (terminates flag scan)",
+        "reorder": "none",
+        "dash_equivalence": "single/double dash equivalent (Go flag package); repeated scalar flags last-wins"
+      },
+      "help": {
+        "forms": ["-h", "--help (via flag.ErrHelp)"],
+        "stream": "stderr",
+        "exit_code": 1,
+        "notes": "fs.Parse returns flag.ErrHelp after printing custom usage to stderr; cmdSkillInstall returns it verbatim (skillcli.go:118-120); main prints 'seek: flag: help requested' to stderr and exits 1 (main.go:788-789). NOT the top-level stdout/0 posture. Group overview 'seek skill help' is stdout/0 (skillcli.go:58-60)."
+      },
+      "errors": {
+        "unknown_flag": { "stream": "stderr", "exit_code": 1, "detail": "flag prints 'flag provided but not defined' + usage to stderr; err returned -> main exit 1" },
+        "positional_error": { "stream": "stderr", "exit_code": 1, "detail": "NArg != 1: fs.Usage() to stderr + 'install: exactly one <source> is required' (skillcli.go:121-124)" },
+        "bad_flag_value": { "stream": "stderr", "exit_code": 1, "detail": "--type not local|git|https: '--type must be local, git, or https (got %q)' (skillcli.go:144)" },
+        "runtime_failure": { "stream": "stderr", "exit_code": 1, "detail": "skillmgr.Install error returned -> 'seek: <err>' stderr exit 1 (skillcli.go:147-150, main.go:788-789)" }
+      },
+      "cases": [
+        { "argv": ["skill", "install", "-h"], "preconditions": "none", "expect": "custom usage on stderr, then 'seek: flag: help requested' on stderr", "exit_code": 1 },
+        { "argv": ["skill", "install"], "preconditions": "none", "expect": "usage stderr + 'install: exactly one <source> is required'", "exit_code": 1 },
+        { "argv": ["skill", "install", "./a", "./b"], "preconditions": "none", "expect": "usage stderr + 'install: exactly one <source> is required' (NArg=2)", "exit_code": 1 },
+        { "argv": ["skill", "install", "--type", "bogus", "./a"], "preconditions": "none", "expect": "'--type must be local, git, or https (got \"bogus\")' via seek: prefix stderr", "exit_code": 1 },
+        { "argv": ["skill", "install", "./a", "--force"], "preconditions": "none", "expect": "flag.Parse stops at ./a; --force becomes a second positional -> 'exactly one <source>' error", "exit_code": 1 },
+        { "argv": ["skill", "install", "--force", "./valid-skill-dir"], "preconditions": "dir contains SKILL.md; no same-name skill or --force given", "expect": "stdout 'installed <name> -> <dir>'", "exit_code": 0 }
+      ]
+    },
+    {
+      "command": "skill uninstall",
+      "aliases": ["remove", "rm"],
+      "owner": "M2",
+      "sources": [
+        "internal/skillcli/skillcli.go:runSkillCmd:44-45 (uninstall|remove|rm)",
+        "internal/skillcli/skillcli.go:cmdSkillUninstall:157-183 (FlagSet:158)",
+        "cmd/seek/main.go:main:774-791"
+      ],
+      "flags": [
+        { "name": "keep-stats", "aliases": [], "type": "bool", "declared_default": true, "repeatable": false, "help": "keep this skill's rows in .stats.jsonl (default true; --keep-stats=false purges) — accepted no-op stub until M8.4b (skillcli.go:166-169)" }
+      ],
+      "positionals": {
+        "entries": [ { "name": "<name>", "required": true, "variadic": false } ],
+        "count_rule": "fs.NArg() != 1 -> usage + error (skillcli.go:173-176)",
+        "extra_positionals": "rejected",
+        "notes": "flags must precede <name> (Go flag positional termination)"
+      },
+      "parsing": {
+        "mechanism": "flag.FlagSet",
+        "flagset_name": "seek skill uninstall",
+        "error_handling": "ContinueOnError",
+        "output": "stderr (skillcli.go:159)",
+        "usage_style": "custom fs.Usage stderr (skillcli.go:160-165)",
+        "positional_termination": "stops at first non-flag; no reorder",
+        "dashdash": "supported by flag.Parse",
+        "reorder": "none",
+        "dash_equivalence": "single/double dash equivalent; repeated scalar flags last-wins"
+      },
+      "help": {
+        "forms": ["-h", "--help (via flag.ErrHelp)"],
+        "stream": "stderr",
+        "exit_code": 1,
+        "notes": "ErrHelp returned verbatim (skillcli.go:170-172) -> main 'seek: flag: help requested' stderr exit 1; group help 'seek skill help' stdout/0"
+      },
+      "errors": {
+        "unknown_flag": { "stream": "stderr", "exit_code": 1, "detail": "flag error + usage stderr; returned err -> exit 1" },
+        "positional_error": { "stream": "stderr", "exit_code": 1, "detail": "'uninstall: exactly one <name> is required' + usage (skillcli.go:173-176)" },
+        "runtime_failure": { "stream": "stderr", "exit_code": 1, "detail": "skillmgr.Uninstall error -> seek: prefix exit 1 (skillcli.go:177-180)" }
+      },
+      "cases": [
+        { "argv": ["skill", "uninstall"], "preconditions": "none", "expect": "usage stderr + 'uninstall: exactly one <name> is required'", "exit_code": 1 },
+        { "argv": ["skill", "rm", "--help"], "preconditions": "none", "expect": "alias rm dispatches; usage stderr + 'seek: flag: help requested'", "exit_code": 1 },
+        { "argv": ["skill", "uninstall", "no-such-skill"], "preconditions": "skill not installed", "expect": "skillmgr.Uninstall error via seek: stderr", "exit_code": 1 },
+        { "argv": ["skill", "uninstall", "installed-skill"], "preconditions": "skill installed", "expect": "stdout 'uninstalled <name> (removed <path>)'", "exit_code": 0 }
+      ]
+    },
+    {
+      "command": "skill update",
+      "aliases": [],
+      "owner": "M2",
+      "sources": [
+        "internal/skillcli/skillcli.go:runSkillCmd:46-47",
+        "internal/skillcli/skillcli.go:cmdSkillUpdate:187-240 (FlagSet:188)",
+        "cmd/seek/main.go:main:774-791"
+      ],
+      "flags": [
+        { "name": "all", "aliases": [], "type": "bool", "declared_default": false, "repeatable": false, "help": "update every installed skill that has a recorded source" }
+      ],
+      "positionals": {
+        "entries": [ { "name": "<name>", "required": false, "variadic": false } ],
+        "count_rule": "--all: NArg > 0 -> conflict error (skillcli.go:204-206); without --all: NArg != 1 -> usage + error (skillcli.go:230-233)",
+        "extra_positionals": "rejected",
+        "notes": "exactly one of <name> or --all"
+      },
+      "parsing": {
+        "mechanism": "flag.FlagSet",
+        "flagset_name": "seek skill update",
+        "error_handling": "ContinueOnError",
+        "output": "stderr (skillcli.go:189)",
+        "usage_style": "custom fs.Usage stderr (skillcli.go:190-197)",
+        "positional_termination": "stops at first non-flag; no reorder",
+        "dashdash": "supported by flag.Parse",
+        "reorder": "none",
+        "dash_equivalence": "single/double dash equivalent; repeated scalar flags last-wins"
+      },
+      "help": {
+        "forms": ["-h", "--help (via flag.ErrHelp)"],
+        "stream": "stderr",
+        "exit_code": 1,
+        "notes": "ErrHelp returned verbatim (skillcli.go:199-201) -> main exit 1; group help stdout/0"
+      },
+      "errors": {
+        "unknown_flag": { "stream": "stderr", "exit_code": 1, "detail": "flag error + usage stderr -> exit 1" },
+        "positional_error": { "stream": "stderr", "exit_code": 1, "detail": "'update: --all conflicts with a positional <name>' (205) or 'update: exactly one <name> is required (or use --all)' + usage (232)" },
+        "runtime_failure": { "stream": "stderr", "exit_code": 1, "detail": "UpdateAll partial failures: per-skill lines stderr + 'update --all: %d of %d skills failed' (skillcli.go:215-226); single Update error -> seek: exit 1" }
+      },
+      "cases": [
+        { "argv": ["skill", "update"], "preconditions": "none", "expect": "usage stderr + 'update: exactly one <name> is required (or use --all)'", "exit_code": 1 },
+        { "argv": ["skill", "update", "--all", "some-name"], "preconditions": "none", "expect": "'update: --all conflicts with a positional <name>'", "exit_code": 1 },
+        { "argv": ["skill", "update", "--all"], "preconditions": "no managed skills with recorded source", "expect": "stdout 'no managed skills to update'", "exit_code": 0 },
+        { "argv": ["skill", "update", "installed-skill"], "preconditions": "skill installed with recorded source", "expect": "stdout 'updated <name> -> <path>'", "exit_code": 0 }
+      ]
+    },
+    {
+      "command": "skill list",
+      "aliases": ["ls"],
+      "owner": "M2",
+      "sources": [
+        "internal/skillcli/skillcli.go:runSkillCmd:48-49 (list|ls)",
+        "internal/skillcli/query.go:cmdSkillList:160-216 (FlagSet:161)",
+        "cmd/seek/main.go:main:774-791"
+      ],
+      "flags": [
+        { "name": "source", "aliases": [], "type": "string", "declared_default": "", "repeatable": false, "help": "filter by source: project | user | builtin | .claude" },
+        { "name": "json", "aliases": [], "type": "bool", "declared_default": false, "repeatable": false, "help": "emit JSON instead of a table" }
+      ],
+      "positionals": {
+        "entries": [],
+        "count_rule": "no NArg check in cmdSkillList (query.go:160-216)",
+        "extra_positionals": "ignored (flag.Parse stops at first positional; remainder never examined)",
+        "notes": "trailing tokens after a positional are silently dropped"
+      },
+      "parsing": {
+        "mechanism": "flag.FlagSet",
+        "flagset_name": "seek skill list",
+        "error_handling": "ContinueOnError",
+        "output": "stderr (query.go:162)",
+        "usage_style": "custom fs.Usage stderr (query.go:163-168)",
+        "positional_termination": "stops at first non-flag; no reorder",
+        "dashdash": "supported by flag.Parse",
+        "reorder": "none",
+        "dash_equivalence": "single/double dash equivalent; repeated scalar flags last-wins"
+      },
+      "help": {
+        "forms": ["-h", "--help (via flag.ErrHelp)"],
+        "stream": "stderr",
+        "exit_code": 1,
+        "notes": "ErrHelp returned verbatim (query.go:171-173) -> main exit 1; group help stdout/0"
+      },
+      "errors": {
+        "unknown_flag": { "stream": "stderr", "exit_code": 1, "detail": "flag error + usage stderr -> exit 1" },
+        "positional_error": { "stream": "n/a", "exit_code": 0, "detail": "not applicable: no positional validation exists (query.go:160-216); extras ignored" },
+        "runtime_failure": { "stream": "stderr", "exit_code": 1, "detail": "loadAll error returned -> seek: exit 1 (query.go:174-177); stats read is best-effort (query.go:150-156,178)" }
+      },
+      "cases": [
+        { "argv": ["skill", "list", "-h"], "preconditions": "none", "expect": "usage stderr + 'seek: flag: help requested'", "exit_code": 1 },
+        { "argv": ["skill", "ls"], "preconditions": "no skills loaded", "expect": "stdout 'no skills loaded'", "exit_code": 0 },
+        { "argv": ["skill", "list", "--json"], "preconditions": "any", "expect": "indented JSON array of skillRow on stdout (query.go:202-204,640-644)", "exit_code": 0 },
+        { "argv": ["skill", "list", "--source", "user"], "preconditions": "skills loaded", "expect": "table filtered to source label 'user' (query.go:184-186)", "exit_code": 0 }
+      ]
+    },
+    {
+      "command": "skill status",
+      "aliases": [],
+      "owner": "M2",
+      "sources": [
+        "internal/skillcli/skillcli.go:runSkillCmd:50-51",
+        "internal/skillcli/query.go:cmdSkillStatus:239-310 (FlagSet:240)",
+        "cmd/seek/main.go:main:774-791"
+      ],
+      "flags": [
+        { "name": "json", "aliases": [], "type": "bool", "declared_default": false, "repeatable": false, "help": "emit JSON instead of a table" }
+      ],
+      "positionals": {
+        "entries": [ { "name": "<name>", "required": true, "variadic": false } ],
+        "count_rule": "fs.NArg() != 1 -> usage + error (query.go:252-255)",
+        "extra_positionals": "rejected",
+        "notes": "flags must precede <name>"
+      },
+      "parsing": {
+        "mechanism": "flag.FlagSet",
+        "flagset_name": "seek skill status",
+        "error_handling": "ContinueOnError",
+        "output": "stderr (query.go:241)",
+        "usage_style": "custom fs.Usage stderr (query.go:242-247)",
+        "positional_termination": "stops at first non-flag; no reorder",
+        "dashdash": "supported by flag.Parse",
+        "reorder": "none",
+        "dash_equivalence": "single/double dash equivalent; repeated scalar flags last-wins"
+      },
+      "help": {
+        "forms": ["-h", "--help (via flag.ErrHelp)"],
+        "stream": "stderr",
+        "exit_code": 1,
+        "notes": "ErrHelp returned verbatim (query.go:249-251) -> main exit 1; group help stdout/0"
+      },
+      "errors": {
+        "unknown_flag": { "stream": "stderr", "exit_code": 1, "detail": "flag error + usage stderr -> exit 1" },
+        "positional_error": { "stream": "stderr", "exit_code": 1, "detail": "'status: exactly one <name> is required' + usage (query.go:252-255)" },
+        "runtime_failure": { "stream": "stderr", "exit_code": 1, "detail": "unknown skill: 'status: skill %q not loaded' (query.go:263-265); loadAll error -> seek: exit 1" }
+      },
+      "cases": [
+        { "argv": ["skill", "status"], "preconditions": "none", "expect": "usage stderr + 'status: exactly one <name> is required'", "exit_code": 1 },
+        { "argv": ["skill", "status", "nope"], "preconditions": "skill not loaded", "expect": "'status: skill \"nope\" not loaded' via seek: stderr", "exit_code": 1 },
+        { "argv": ["skill", "status", "loaded-skill", "--json"], "preconditions": "skill loaded; --json before name would also parse", "expect": "indented skillStatusReport JSON stdout (query.go:306-308)", "exit_code": 0 }
+      ]
+    },
+    {
+      "command": "skill stats",
+      "aliases": [],
+      "owner": "M2",
+      "sources": [
+        "internal/skillcli/skillcli.go:runSkillCmd:52-53",
+        "internal/skillcli/query.go:cmdSkillStats:428-522 (FlagSet:429)",
+        "internal/skillcli/query.go:reportFunnel:530-565, reportIdle:617-636",
+        "cmd/seek/main.go:main:774-791"
+      ],
+      "flags": [
+        { "name": "top", "aliases": [], "type": "int", "declared_default": 10, "repeatable": false, "help": "show this many skills (highest call count first); 0 = no limit" },
+        { "name": "since", "aliases": [], "type": "duration", "declared_default": "720h", "repeatable": false, "help": "only count calls newer than this (e.g. 24h, 168h, 720h); declared 30*24*time.Hour (query.go:438)" },
+        { "name": "distill", "aliases": [], "type": "bool", "declared_default": false, "repeatable": false, "help": "report the skill-distillation funnel (stage x verdict counts) instead of call counts" },
+        { "name": "idle", "aliases": [], "type": "duration", "declared_default": "0s", "repeatable": false, "help": "list LOADED skills with zero calls in this window, least-recently-used first (e.g. 720h); active only when explicitly set (fs.Visit, query.go:451-460)" },
+        { "name": "json", "aliases": [], "type": "bool", "declared_default": false, "repeatable": false, "help": "emit JSON instead of a table" }
+      ],
+      "positionals": {
+        "entries": [],
+        "count_rule": "no NArg check in cmdSkillStats (query.go:428-522)",
+        "extra_positionals": "ignored",
+        "notes": "trailing tokens after a positional silently dropped"
+      },
+      "parsing": {
+        "mechanism": "flag.FlagSet",
+        "flagset_name": "seek skill stats",
+        "error_handling": "ContinueOnError",
+        "output": "stderr (query.go:430)",
+        "usage_style": "custom fs.Usage stderr (query.go:431-436)",
+        "positional_termination": "stops at first non-flag; no reorder",
+        "dashdash": "supported by flag.Parse",
+        "reorder": "none",
+        "dash_equivalence": "single/double dash equivalent; repeated scalar flags last-wins",
+        "explicit_set_detection": "fs.Visit distinguishes explicitly-set --idle/--top/--since from defaults (query.go:451-460)"
+      },
+      "help": {
+        "forms": ["-h", "--help (via flag.ErrHelp)"],
+        "stream": "stderr",
+        "exit_code": 1,
+        "notes": "ErrHelp returned verbatim (query.go:442-444) -> main exit 1; group help stdout/0"
+      },
+      "errors": {
+        "unknown_flag": { "stream": "stderr", "exit_code": 1, "detail": "flag error + usage stderr -> exit 1" },
+        "positional_error": { "stream": "n/a", "exit_code": 0, "detail": "not applicable: no positional validation (query.go:428-522)" },
+        "bad_flag_value": { "stream": "stderr", "exit_code": 1, "detail": "'stats: --idle cannot be combined with --top, --since or --distill' (query.go:455); 'stats: --idle requires a positive duration' (query.go:458)" },
+        "runtime_failure": { "stream": "stderr", "exit_code": 1, "detail": "loadStats/loadAll error -> seek: exit 1 (query.go:462-465,470-473)" }
+      },
+      "cases": [
+        { "argv": ["skill", "stats", "--idle", "720h", "--top", "5"], "preconditions": "none", "expect": "'stats: --idle cannot be combined with --top, --since or --distill'", "exit_code": 1 },
+        { "argv": ["skill", "stats", "--idle", "0s"], "preconditions": "none", "expect": "'stats: --idle requires a positive duration (e.g. --idle 720h)'", "exit_code": 1 },
+        { "argv": ["skill", "stats"], "preconditions": "no stats rows in window", "expect": "stdout 'no skill calls recorded in the selected window'", "exit_code": 0 },
+        { "argv": ["skill", "stats", "--distill"], "preconditions": "no distill telemetry", "expect": "stdout 'no distillation telemetry recorded ...' (query.go:533)", "exit_code": 0 },
+        { "argv": ["skill", "stats", "--json", "--top", "0"], "preconditions": "stats rows exist", "expect": "JSON array of all ranked rows (top 0 = no limit, query.go:492-494)", "exit_code": 0 }
+      ]
+    },
+    {
+      "command": "skill create",
+      "aliases": ["new"],
+      "owner": "M2",
+      "sources": [
+        "internal/skillcli/skillcli.go:runSkillCmd:54-55 (create|new)",
+        "internal/skillcli/create.go:cmdSkillCreate:17-87 (FlagSet:18, name-peel:53-57)",
+        "cmd/seek/main.go:main:774-791"
+      ],
+      "flags": [
+        { "name": "description", "aliases": [], "type": "string", "declared_default": "", "repeatable": false, "help": "single-line trigger condition shown in the system-prompt manifest (required — non-interactive build refuses without it)" },
+        { "name": "project", "aliases": [], "type": "bool", "declared_default": false, "repeatable": false, "help": "scaffold into <cwd>/.seek/skills/ (team-shared via git) instead of ~/.seek/skills/" },
+        { "name": "into", "aliases": [], "type": "string", "declared_default": "", "repeatable": false, "help": "explicit parent directory; wins over --project" }
+      ],
+      "positionals": {
+        "entries": [ { "name": "<name>", "required": true, "variadic": false } ],
+        "count_rule": "name peeled from args[0] (must not start with '-'); after fs.Parse(args[1:]), NArg != 0 -> usage + error (create.go:53-64)",
+        "extra_positionals": "rejected",
+        "notes": "target precedence --into > --project > ~/.seek/skills (create.go:30-33); target must not exist, no --force (create.go:35-36)"
+      },
+      "parsing": {
+        "mechanism": "hand-written name-peel + flag.FlagSet",
+        "flagset_name": "seek skill create",
+        "error_handling": "ContinueOnError",
+        "output": "stderr (create.go:19)",
+        "usage_style": "custom fs.Usage stderr (create.go:20-40)",
+        "positional_termination": "name consumed before parse; remaining args flags-only, any further positional rejected",
+        "dashdash": "supported by flag.Parse on args[1:]",
+        "reorder": "name peeled from front so 'create my-skill --description ...' works (create.go:46-57)",
+        "dash_equivalence": "single/double dash equivalent; repeated scalar flags last-wins"
+      },
+      "help": {
+        "forms": ["-h/--help after <name> (via flag.ErrHelp)"],
+        "stream": "stderr",
+        "exit_code": 1,
+        "notes": "leading -h (no name) hits the name-peel guard: usage stderr + 'create: <name> must be the first argument' exit 1 (create.go:53-56); 'create name -h' -> ErrHelp returned -> main exit 1; group help stdout/0"
+      },
+      "errors": {
+        "unknown_flag": { "stream": "stderr", "exit_code": 1, "detail": "flag error + usage stderr -> exit 1" },
+        "positional_error": { "stream": "stderr", "exit_code": 1, "detail": "'create: <name> must be the first argument ...' (create.go:55) or 'create: unexpected extra positional argument(s): %v' + usage (create.go:63)" },
+        "missing_required": { "stream": "stderr", "exit_code": 1, "detail": "'create: --description is required (a skill without a description won't load)' + usage (create.go:70-73)" },
+        "runtime_failure": { "stream": "stderr", "exit_code": 1, "detail": "skillmgr.Create error (e.g. target exists) -> seek: exit 1 (create.go:75-83)" }
+      },
+      "cases": [
+        { "argv": ["skill", "create"], "preconditions": "none", "expect": "usage stderr + 'create: <name> must be the first argument'", "exit_code": 1 },
+        { "argv": ["skill", "create", "--description", "x", "my-skill"], "preconditions": "none", "expect": "name-peel guard rejects flag-first order: 'create: <name> must be the first argument'", "exit_code": 1 },
+        { "argv": ["skill", "create", "my-skill"], "preconditions": "none", "expect": "usage stderr + 'create: --description is required'", "exit_code": 1 },
+        { "argv": ["skill", "create", "my-skill", "--description", "trigger", "extra"], "preconditions": "none", "expect": "usage stderr + 'create: unexpected extra positional argument(s): [extra]'", "exit_code": 1 },
+        { "argv": ["skill", "new", "my-skill", "--description", "trigger"], "preconditions": "target dir does not exist", "expect": "stdout 'scaffolded my-skill -> <dir>' + next-steps line (create.go:84-85)", "exit_code": 0 }
+      ]
+    },
+    {
+      "command": "skill drafts",
+      "aliases": [],
+      "owner": "M2",
+      "sources": [
+        "internal/skillcli/skillcli.go:runSkillCmd:56-57",
+        "internal/skillcli/drafts.go:cmdSkillDrafts:60-120 (nested dispatch:61-70, FlagSet:72)",
+        "cmd/seek/main.go:main:774-791"
+      ],
+      "flags": [
+        { "name": "json", "aliases": [], "type": "bool", "declared_default": false, "repeatable": false, "help": "machine-readable output (one JSON array)" }
+      ],
+      "positionals": {
+        "entries": [],
+        "count_rule": "no NArg check in the list branch (drafts.go:72-119)",
+        "extra_positionals": "ignored — an unrecognized first token (e.g. 'drafts foo' or 'drafts help') falls through the nested switch (drafts.go:61-70) into the list FlagSet as an ignored positional",
+        "notes": "nested verbs show/approve/reject(rm) are dispatched before flag parsing"
+      },
+      "parsing": {
+        "mechanism": "hand-written nested verb dispatch + flag.FlagSet (list branch)",
+        "flagset_name": "seek skill drafts",
+        "error_handling": "ContinueOnError",
+        "output": "stderr (drafts.go:73)",
+        "usage_style": "custom fs.Usage stderr incl. draftsUsage overview (drafts.go:74-77,51-58)",
+        "positional_termination": "list branch stops at first non-flag; unknown tokens are NOT errors",
+        "dashdash": "supported by flag.Parse",
+        "reorder": "none",
+        "dash_equivalence": "single/double dash equivalent; repeated scalar flags last-wins"
+      },
+      "help": {
+        "forms": ["-h", "--help (via flag.ErrHelp, list branch only)"],
+        "stream": "stderr",
+        "exit_code": 1,
+        "notes": "no 'help' verb: 'drafts help' lists the inbox (help is an ignored positional). -h -> usage stderr + ErrHelp returned (drafts.go:79-81) -> main exit 1. Parent 'seek skill help' stdout/0 mentions drafts."
+      },
+      "errors": {
+        "unknown_flag": { "stream": "stderr", "exit_code": 1, "detail": "flag error + usage stderr -> exit 1" },
+        "unknown_subcommand": { "stream": "n/a", "exit_code": 0, "detail": "not applicable: unrecognized tokens fall through to the inbox listing (drafts.go:61-70 has no default error branch)" },
+        "runtime_failure": { "stream": "stderr", "exit_code": 1, "detail": "DraftStore.ListDrafts error -> seek: exit 1 (drafts.go:83-87)" }
+      },
+      "cases": [
+        { "argv": ["skill", "drafts"], "preconditions": "no drafts", "expect": "stdout 'no skill drafts (drafts appear here after /distill extracts a reusable procedure)'", "exit_code": 0 },
+        { "argv": ["skill", "drafts", "--json"], "preconditions": "no drafts", "expect": "stdout '[]' indented JSON array (drafts.go:89-106)", "exit_code": 0 },
+        { "argv": ["skill", "drafts", "bogus-token"], "preconditions": "any", "expect": "inbox listing (unknown token ignored as positional), NOT an error", "exit_code": 0 },
+        { "argv": ["skill", "drafts", "-h"], "preconditions": "none", "expect": "usage stderr + 'seek: flag: help requested'", "exit_code": 1 }
+      ]
+    },
+    {
+      "command": "skill drafts show",
+      "aliases": [],
+      "owner": "M2",
+      "sources": [
+        "internal/skillcli/drafts.go:cmdSkillDrafts:63-64 (show dispatch)",
+        "internal/skillcli/drafts.go:cmdSkillDraftsShow:160-228 (FlagSet:161)",
+        "cmd/seek/main.go:main:774-791"
+      ],
+      "flags": [],
+      "positionals": {
+        "entries": [ { "name": "<name>", "required": true, "variadic": false } ],
+        "count_rule": "fs.NArg() != 1 -> usage + error (drafts.go:174-177)",
+        "extra_positionals": "rejected",
+        "notes": "flags (none declared) would have to precede <name>; -h/--help still recognized by flag.Parse before the positional"
+      },
+      "parsing": {
+        "mechanism": "flag.FlagSet (no flags declared — empty array is intentional, drafts.go:161-173 defines none)",
+        "flagset_name": "seek skill drafts show",
+        "error_handling": "ContinueOnError",
+        "output": "stderr (drafts.go:162)",
+        "usage_style": "custom fs.Usage stderr (drafts.go:163-170)",
+        "positional_termination": "stops at first non-flag",
+        "dashdash": "supported by flag.Parse",
+        "reorder": "none",
+        "dash_equivalence": "single/double dash equivalent (Go flag)"
+      },
+      "help": {
+        "forms": ["-h", "--help (via flag.ErrHelp)"],
+        "stream": "stderr",
+        "exit_code": 1,
+        "notes": "ErrHelp returned verbatim (drafts.go:171-173) -> main exit 1"
+      },
+      "errors": {
+        "unknown_flag": { "stream": "stderr", "exit_code": 1, "detail": "flag error + usage stderr -> exit 1" },
+        "positional_error": { "stream": "stderr", "exit_code": 1, "detail": "'drafts show: exactly one <name> is required' + usage (drafts.go:176)" },
+        "runtime_failure": { "stream": "stderr", "exit_code": 1, "detail": "ReadDraft error -> seek: exit 1 (drafts.go:180-183); unparseable SKILL.md: 'drafts show: draft SKILL.md no longer parses' (202); loader error (206)" }
+      },
+      "cases": [
+        { "argv": ["skill", "drafts", "show"], "preconditions": "none", "expect": "usage stderr + 'drafts show: exactly one <name> is required'", "exit_code": 1 },
+        { "argv": ["skill", "drafts", "show", "nope"], "preconditions": "draft absent", "expect": "ReadDraft error via seek: stderr", "exit_code": 1 },
+        { "argv": ["skill", "drafts", "show", "existing-draft"], "preconditions": "draft exists; no similar installed skill", "expect": "stdout provenance + full SKILL.md + 'nearest installed skill: none (no meaningful overlap)' (drafts.go:213)", "exit_code": 0 }
+      ]
+    },
+    {
+      "command": "skill drafts approve",
+      "aliases": [],
+      "owner": "M2",
+      "sources": [
+        "internal/skillcli/drafts.go:cmdSkillDrafts:65-66 (approve dispatch)",
+        "internal/skillcli/drafts.go:cmdSkillDraftsApprove:232-297 (FlagSet:233)",
+        "cmd/seek/main.go:main:774-791"
+      ],
+      "flags": [
+        { "name": "project", "aliases": [], "type": "bool", "declared_default": false, "repeatable": false, "help": "install into <cwd>/.seek/skills/ (overrides suggested scope)" },
+        { "name": "user", "aliases": [], "type": "bool", "declared_default": false, "repeatable": false, "help": "install into ~/.seek/skills/ (overrides suggested scope)" },
+        { "name": "force", "aliases": [], "type": "bool", "declared_default": false, "repeatable": false, "help": "replace an installed skill of the same name" }
+      ],
+      "positionals": {
+        "entries": [ { "name": "<name>", "required": true, "variadic": false } ],
+        "count_rule": "fs.NArg() != 1 -> usage + error (drafts.go:251-254)",
+        "extra_positionals": "rejected",
+        "notes": "scope precedence: --project/--user > sidecar suggested_scope (non-'user' sidecar values coerced to 'project', drafts.go:268-278)"
+      },
+      "parsing": {
+        "mechanism": "flag.FlagSet",
+        "flagset_name": "seek skill drafts approve",
+        "error_handling": "ContinueOnError",
+        "output": "stderr (drafts.go:234)",
+        "usage_style": "custom fs.Usage stderr (drafts.go:235-244)",
+        "positional_termination": "stops at first non-flag; flags must precede <name>",
+        "dashdash": "supported by flag.Parse",
+        "reorder": "none",
+        "dash_equivalence": "single/double dash equivalent; repeated scalar flags last-wins"
+      },
+      "help": {
+        "forms": ["-h", "--help (via flag.ErrHelp)"],
+        "stream": "stderr",
+        "exit_code": 1,
+        "notes": "ErrHelp returned verbatim (drafts.go:248-250) -> main exit 1"
+      },
+      "errors": {
+        "unknown_flag": { "stream": "stderr", "exit_code": 1, "detail": "flag error + usage stderr -> exit 1" },
+        "positional_error": { "stream": "stderr", "exit_code": 1, "detail": "'drafts approve: exactly one <name> is required' + usage (drafts.go:253)" },
+        "bad_flag_value": { "stream": "stderr", "exit_code": 1, "detail": "'drafts approve: --project and --user are mutually exclusive' (drafts.go:255-257)" },
+        "runtime_failure": { "stream": "stderr", "exit_code": 1, "detail": "install failure keeps the draft: 'drafts approve: %w (draft kept in the inbox)' (289); post-install delete failure (292); ReadDraft error (261-264)" }
+      },
+      "cases": [
+        { "argv": ["skill", "drafts", "approve"], "preconditions": "none", "expect": "usage stderr + 'drafts approve: exactly one <name> is required'", "exit_code": 1 },
+        { "argv": ["skill", "drafts", "approve", "--project", "--user", "d"], "preconditions": "none", "expect": "'drafts approve: --project and --user are mutually exclusive'", "exit_code": 1 },
+        { "argv": ["skill", "drafts", "approve", "collision-draft"], "preconditions": "same-name skill installed, no --force", "expect": "'drafts approve: ... (draft kept in the inbox)' via seek: stderr; draft survives", "exit_code": 1 },
+        { "argv": ["skill", "drafts", "approve", "good-draft"], "preconditions": "draft exists, no collision", "expect": "stdout 'approved <name>: installed -> <dir> (scope: ...)' + restart note; draft deleted (drafts.go:291-295)", "exit_code": 0 }
+      ]
+    },
+    {
+      "command": "skill drafts reject",
+      "aliases": ["rm"],
+      "owner": "M2",
+      "sources": [
+        "internal/skillcli/drafts.go:cmdSkillDrafts:67-68 (reject|rm dispatch)",
+        "internal/skillcli/drafts.go:cmdSkillDraftsReject:301-326 (FlagSet:302)",
+        "cmd/seek/main.go:main:774-791"
+      ],
+      "flags": [],
+      "positionals": {
+        "entries": [ { "name": "<name>", "required": true, "variadic": false } ],
+        "count_rule": "fs.NArg() != 1 -> usage + error (drafts.go:315-318)",
+        "extra_positionals": "rejected",
+        "notes": "'rm' is an alias of the nested reject verb (drafts.go:67)"
+      },
+      "parsing": {
+        "mechanism": "flag.FlagSet (no flags declared — drafts.go:302-314 defines none)",
+        "flagset_name": "seek skill drafts reject",
+        "error_handling": "ContinueOnError",
+        "output": "stderr (drafts.go:303)",
+        "usage_style": "custom fs.Usage stderr (drafts.go:304-311)",
+        "positional_termination": "stops at first non-flag",
+        "dashdash": "supported by flag.Parse",
+        "reorder": "none",
+        "dash_equivalence": "single/double dash equivalent (Go flag)"
+      },
+      "help": {
+        "forms": ["-h", "--help (via flag.ErrHelp)"],
+        "stream": "stderr",
+        "exit_code": 1,
+        "notes": "ErrHelp returned verbatim (drafts.go:312-314) -> main exit 1"
+      },
+      "errors": {
+        "unknown_flag": { "stream": "stderr", "exit_code": 1, "detail": "flag error + usage stderr -> exit 1" },
+        "positional_error": { "stream": "stderr", "exit_code": 1, "detail": "'drafts reject: exactly one <name> is required' + usage (drafts.go:317)" },
+        "runtime_failure": { "stream": "stderr", "exit_code": 1, "detail": "DeleteDraft error -> seek: exit 1 (drafts.go:320-323)" }
+      },
+      "cases": [
+        { "argv": ["skill", "drafts", "reject"], "preconditions": "none", "expect": "usage stderr + 'drafts reject: exactly one <name> is required'", "exit_code": 1 },
+        { "argv": ["skill", "drafts", "rm", "nope"], "preconditions": "draft absent", "expect": "DeleteDraft error via seek: stderr", "exit_code": 1 },
+        { "argv": ["skill", "drafts", "reject", "existing-draft"], "preconditions": "draft exists", "expect": "stdout 'rejected draft <name> (deleted <dir>)'", "exit_code": 0 }
+      ]
+    },
+    {
+      "command": "memory list",
+      "aliases": ["ls"],
+      "owner": "M2",
+      "sources": [
+        "internal/memorycli/memorycli.go:runMemoryCmd:27-52 (list|ls:34-35)",
+        "internal/memorycli/memorycli.go:cmdList:94-153 (FlagSet:95)",
+        "internal/memorycli/memorycli.go:ListArchived:369-382",
+        "internal/memory/score.go:HalfLifeFromEnv:65-75, defaultHalfLife:15",
+        "cmd/seek/main.go:run:861-863, main:774-791"
+      ],
+      "flags": [
+        { "name": "all", "aliases": [], "type": "bool", "declared_default": false, "repeatable": false, "help": "include stale entries" },
+        { "name": "archived", "aliases": [], "type": "bool", "declared_default": false, "repeatable": false, "help": "list archived entries instead of active ones" }
+      ],
+      "positionals": {
+        "entries": [],
+        "count_rule": "no NArg check (memorycli.go:94-153)",
+        "extra_positionals": "ignored",
+        "notes": "score display uses half-life from SEEK_MEMORY_HALFLIFE_DAYS env, falling back to 720h (30 days) when absent/unparseable/non-positive (score.go:15,65-75) — effective-default precedence: env > built-in"
+      },
+      "parsing": {
+        "mechanism": "flag.FlagSet",
+        "flagset_name": "memory list",
+        "error_handling": "ContinueOnError",
+        "output": "stderr (memorycli.go:96)",
+        "usage_style": "default flag usage (no custom fs.Usage) to stderr",
+        "positional_termination": "stops at first non-flag; no reorder",
+        "dashdash": "supported by flag.Parse",
+        "reorder": "none",
+        "dash_equivalence": "single/double dash equivalent; repeated scalar flags last-wins"
+      },
+      "help": {
+        "forms": ["-h", "--help (via flag.ErrHelp)"],
+        "stream": "stderr",
+        "exit_code": 1,
+        "notes": "ErrHelp returned verbatim (memorycli.go:99-101) -> main 'seek: flag: help requested' exit 1; group 'seek memory help' stdout/0 (memorycli.go:44-46)"
+      },
+      "errors": {
+        "unknown_flag": { "stream": "stderr", "exit_code": 1, "detail": "flag error + default usage stderr -> exit 1" },
+        "positional_error": { "stream": "n/a", "exit_code": 0, "detail": "not applicable: no positional validation (memorycli.go:94-153)" },
+        "runtime_failure": { "stream": "stderr", "exit_code": 0, "detail": "loadReadOnlyProject error prints 'memory: <err>' to stderr and returns nil -> exit 0 (memorycli.go:103-107); ListArchived read error returned -> exit 1 (110,369-373)" }
+      },
+      "cases": [
+        { "argv": ["memory", "list", "-h"], "preconditions": "none", "expect": "default usage stderr + 'seek: flag: help requested'", "exit_code": 1 },
+        { "argv": ["memory", "ls"], "preconditions": "no project memory entries", "expect": "stdout 'no memory entries'", "exit_code": 0 },
+        { "argv": ["memory", "list"], "preconditions": "only stale entries", "expect": "stdout 'no active memory entries (use --all to include stale)'", "exit_code": 0 },
+        { "argv": ["memory", "list", "--archived"], "preconditions": "no archived entries", "expect": "stdout 'no archived entries'", "exit_code": 0 },
+        { "argv": ["memory", "list", "--all"], "preconditions": "entries exist", "expect": "name-sorted rows with score= and [stale] markers (memorycli.go:141-151)", "exit_code": 0 }
+      ]
+    },
+    {
+      "command": "memory show",
+      "aliases": ["get"],
+      "owner": "M2",
+      "sources": [
+        "internal/memorycli/memorycli.go:runMemoryCmd:36-37 (show|get)",
+        "internal/memorycli/memorycli.go:cmdShow:155-204 (FlagSet:156)",
+        "cmd/seek/main.go:main:774-791"
+      ],
+      "flags": [],
+      "positionals": {
+        "entries": [ { "name": "<name>", "required": false, "variadic": false } ],
+        "count_rule": "fs.Arg(0) trimmed; empty -> usage line stderr, return nil (memorycli.go:162-166); extra positionals ignored",
+        "extra_positionals": "ignored",
+        "notes": "missing name is a UX state: stderr message but exit 0"
+      },
+      "parsing": {
+        "mechanism": "flag.FlagSet (no flags declared — memorycli.go:156-160 defines none)",
+        "flagset_name": "memory show",
+        "error_handling": "ContinueOnError",
+        "output": "stderr (memorycli.go:157)",
+        "usage_style": "default flag usage to stderr",
+        "positional_termination": "stops at first non-flag (the name); flags after the name are ignored",
+        "dashdash": "supported by flag.Parse",
+        "reorder": "none",
+        "dash_equivalence": "single/double dash equivalent (Go flag)"
+      },
+      "help": {
+        "forms": ["-h", "--help (via flag.ErrHelp, before the name)"],
+        "stream": "stderr",
+        "exit_code": 1,
+        "notes": "ErrHelp returned verbatim (memorycli.go:158-160) -> main exit 1; group help stdout/0"
+      },
+      "errors": {
+        "unknown_flag": { "stream": "stderr", "exit_code": 1, "detail": "flag error + default usage stderr -> exit 1" },
+        "missing_positional": { "stream": "stderr", "exit_code": 0, "detail": "'usage: seek memory show <name>' then return nil (memorycli.go:163-166)" },
+        "runtime_failure": { "stream": "stderr", "exit_code": 0, "detail": "project load error 'memory: <err>' (170-172) and missing entry 'memory: entry %q not found' (175-178) both return nil -> exit 0" }
+      },
+      "cases": [
+        { "argv": ["memory", "show"], "preconditions": "none", "expect": "stderr 'usage: seek memory show <name>'", "exit_code": 0 },
+        { "argv": ["memory", "get", "nope"], "preconditions": "entry absent", "expect": "stderr 'memory: entry \"nope\" not found'", "exit_code": 0 },
+        { "argv": ["memory", "show", "existing"], "preconditions": "entry exists", "expect": "stdout Name/Tagline/Created/Updated/Recalled fields + content (memorycli.go:180-202)", "exit_code": 0 }
+      ]
+    },
+    {
+      "command": "memory search",
+      "aliases": ["find"],
+      "owner": "M2",
+      "sources": [
+        "internal/memorycli/memorycli.go:runMemoryCmd:38-39 (search|find)",
+        "internal/memorycli/memorycli.go:cmdSearch:206-256 (FlagSet:207)",
+        "cmd/seek/main.go:main:774-791"
+      ],
+      "flags": [],
+      "positionals": {
+        "entries": [ { "name": "<query>", "required": false, "variadic": true } ],
+        "count_rule": "all fs.Args() joined with spaces and trimmed; empty -> usage stderr, return nil (memorycli.go:213-217)",
+        "extra_positionals": "joined into the query (variadic)",
+        "notes": "case-insensitive substring match on tagline or tags (memorycli.go:225-238)"
+      },
+      "parsing": {
+        "mechanism": "flag.FlagSet (no flags declared — memorycli.go:207-211 defines none)",
+        "flagset_name": "memory search",
+        "error_handling": "ContinueOnError",
+        "output": "stderr (memorycli.go:208)",
+        "usage_style": "default flag usage to stderr",
+        "positional_termination": "stops at first non-flag; remaining words all become the query",
+        "dashdash": "supported by flag.Parse (a '--' lets query words starting with '-' through)",
+        "reorder": "none",
+        "dash_equivalence": "single/double dash equivalent (Go flag)"
+      },
+      "help": {
+        "forms": ["-h", "--help (via flag.ErrHelp)"],
+        "stream": "stderr",
+        "exit_code": 1,
+        "notes": "ErrHelp returned verbatim (memorycli.go:209-211) -> main exit 1; group help stdout/0"
+      },
+      "errors": {
+        "unknown_flag": { "stream": "stderr", "exit_code": 1, "detail": "flag error + default usage stderr -> exit 1" },
+        "missing_positional": { "stream": "stderr", "exit_code": 0, "detail": "'usage: seek memory search <query>' then return nil (memorycli.go:214-217)" },
+        "runtime_failure": { "stream": "stderr", "exit_code": 0, "detail": "project load error prints 'memory: <err>' and returns nil (memorycli.go:219-223)" }
+      },
+      "cases": [
+        { "argv": ["memory", "search"], "preconditions": "none", "expect": "stderr 'usage: seek memory search <query>'", "exit_code": 0 },
+        { "argv": ["memory", "find", "zzzzz"], "preconditions": "no matching entries", "expect": "stdout 'no entries matching \"zzzzz\"'", "exit_code": 0 },
+        { "argv": ["memory", "search", "two", "words"], "preconditions": "entries exist", "expect": "query 'two words' matched against tagline/tags; name-sorted hits stdout", "exit_code": 0 }
+      ]
+    },
+    {
+      "command": "memory archive",
+      "aliases": ["forget"],
+      "owner": "M2",
+      "sources": [
+        "internal/memorycli/memorycli.go:runMemoryCmd:40-41 (archive|forget)",
+        "internal/memorycli/memorycli.go:cmdArchive:258-284 (FlagSet #1:259, FlagSet #2 fs2:274)",
+        "internal/memorycli/memorycli.go:doArchive:286-306",
+        "cmd/seek/main.go:main:774-791"
+      ],
+      "flags": [
+        { "name": "reason", "aliases": [], "type": "string", "declared_default": "manual archive", "repeatable": false, "help": "archive reason (fs:261); second branch fs2 re-declares reason with same default and empty usage text (fs2:276)" }
+      ],
+      "positionals": {
+        "entries": [ { "name": "<name>", "required": true, "variadic": false } ],
+        "count_rule": "branch 1: fs.Parse(args) err==nil && NArg>0 && Arg(0) non-empty non-flag -> doArchive (264-269); branch 2: args[0] non-flag -> fs2.Parse(args[1:]) (272-280); neither -> usage stderr, return nil (282-283)",
+        "extra_positionals": "ignored (only Arg(0)/args[0] used)",
+        "notes": "missing name is a UX state: stderr usage line, exit 0"
+      },
+      "parsing": {
+        "mechanism": "two flag.FlagSet parse branches (flags-first attempt, then name-first fallback)",
+        "flagset_name": "memory archive (both fs:259 and fs2:274)",
+        "error_handling": "ContinueOnError; parse errors are SWALLOWED in both branches (err==nil guards), never returned",
+        "output": "stderr (260,275)",
+        "usage_style": "default flag usage to stderr on parse error, then the hand-written usage line (282)",
+        "positional_termination": "branch 1 stops at the first positional: with 'archive name -reason X', fs.Parse stops at name with err==nil and NArg>0, so branch 1 RETURNS with the default reason and the trailing -reason is never parsed; branch 2 (fs2) is only reached when branch 1 does not return (parse error / no positional / empty or flag-prefixed name) and is effectively defensive for valid names — the name-first -reason intent in the comment (271) is not realized at runtime",
+        "dashdash": "supported by flag.Parse in either branch",
+        "reorder": "none (two-branch attempt instead of reordering)",
+        "dash_equivalence": "single/double dash equivalent; repeated scalar flags last-wins"
+      },
+      "help": {
+        "forms": ["-h/--help are NOT a help path here: parse errors are swallowed"],
+        "stream": "stderr",
+        "exit_code": 0,
+        "notes": "'memory archive -h': branch 1 fs.Parse hits ErrHelp (default usage printed to stderr) but err!=nil skips it; branch 2 skips ('-h' starts with '-'); falls to 'usage: seek memory archive <name> [-reason 'why']' stderr, return nil -> exit 0 (258-283). Group 'seek memory help' stdout/0."
+      },
+      "errors": {
+        "unknown_flag": { "stream": "stderr", "exit_code": 0, "detail": "flag prints error + default usage to stderr, branch guards swallow it, final usage line stderr, exit 0 (264-283)" },
+        "missing_positional": { "stream": "stderr", "exit_code": 0, "detail": "'usage: seek memory archive <name> [-reason 'why']' (282)" },
+        "runtime_failure": { "stream": "stderr", "exit_code": 0, "detail": "doArchive: project load error 'memory: <err>' (289-291), missing entry 'memory: entry %q not found' (294-297), and p.Archive filesystem error 'memory: archive %q: %v' (299-302) ALL print to stderr and return nil -> exit 0. There is no os.Exit / ErrUsage / exit-2 path anywhere in memorycli.go (verified by full-file read at cb27b90d)." }
+      },
+      "cases": [
+        { "argv": ["memory", "archive"], "preconditions": "none", "expect": "stderr usage line 'usage: seek memory archive <name> [-reason 'why']'", "exit_code": 0 },
+        { "argv": ["memory", "archive", "-h"], "preconditions": "none", "expect": "default usage + usage line on stderr (ErrHelp swallowed)", "exit_code": 0 },
+        { "argv": ["memory", "archive", "nope", "-reason", "test"], "preconditions": "entry absent", "expect": "stderr 'memory: entry \"nope\" not found'", "exit_code": 0 },
+        { "argv": ["memory", "archive", "-reason", "cleanup", "existing"], "preconditions": "entry exists (flags-first order)", "expect": "stdout 'archived \"existing\" (reason: cleanup)'", "exit_code": 0 },
+        { "argv": ["memory", "archive", "existing", "-reason", "cleanup"], "preconditions": "entry exists (name-first order)", "expect": "stdout 'archived \"existing\" (reason: manual archive)' — branch 1 returns at the positional before -reason parses; trailing flag ignored (264-269)", "exit_code": 0 },
+        { "argv": ["memory", "archive", "existing"], "preconditions": "entry exists; archived.jsonl unwritable (filesystem failure)", "expect": "stderr 'memory: archive \"existing\": <err>'", "exit_code": 0 }
+      ]
+    },
+    {
+      "command": "memory add",
+      "aliases": ["remember"],
+      "owner": "M2",
+      "sources": [
+        "internal/memorycli/memorycli.go:runMemoryCmd:42-43 (add|remember)",
+        "internal/memorycli/memorycli.go:cmdAdd:311-365 (name-peel:312-316, FlagSet:318)",
+        "cmd/seek/main.go:main:774-791"
+      ],
+      "flags": [
+        { "name": "tagline", "aliases": [], "type": "string", "declared_default": "", "repeatable": false, "help": "One-line summary (required)" },
+        { "name": "content", "aliases": [], "type": "string", "declared_default": "", "repeatable": false, "help": "Full rationale (required)" },
+        { "name": "tags", "aliases": [], "type": "string", "declared_default": "", "repeatable": false, "help": "Comma-separated tags (optional); split/trimmed, empties dropped (memorycli.go:337-345)" }
+      ],
+      "positionals": {
+        "entries": [ { "name": "<name>", "required": true, "variadic": false } ],
+        "count_rule": "args[0] must exist and not start with '-' (312-316); fs.Parse(args[1:]); no NArg check afterwards — extra positionals after flags are ignored",
+        "extra_positionals": "ignored (no NArg validation after parse, memorycli.go:323-329)",
+        "notes": "name-first convention like skill create; missing name/required flags are UX states: stderr usage, exit 0"
+      },
+      "parsing": {
+        "mechanism": "hand-written name-peel + flag.FlagSet",
+        "flagset_name": "memory add",
+        "error_handling": "ContinueOnError",
+        "output": "stderr (memorycli.go:319)",
+        "usage_style": "default flag usage to stderr; hand-written usage line for missing name/fields (313,327)",
+        "positional_termination": "name consumed first; flags parsed from args[1:]; further positionals terminate flag scan and are ignored",
+        "dashdash": "supported by flag.Parse on args[1:]",
+        "reorder": "name peeled from front (312-316)",
+        "dash_equivalence": "single/double dash equivalent; repeated scalar flags last-wins"
+      },
+      "help": {
+        "forms": ["-h/--help after <name> (via flag.ErrHelp)"],
+        "stream": "stderr",
+        "exit_code": 1,
+        "notes": "leading -h hits the name guard: usage stderr, return nil -> exit 0 (312-315); 'add name -h' -> fs.Parse ErrHelp returned (323-325) -> main exit 1; group help stdout/0"
+      },
+      "errors": {
+        "unknown_flag": { "stream": "stderr", "exit_code": 1, "detail": "after a valid name: flag error + default usage stderr, err returned -> exit 1 (323-325)" },
+        "missing_positional": { "stream": "stderr", "exit_code": 0, "detail": "'usage: seek memory add <name> -tagline '...' -content '...' [-tags 'a,b,c']' return nil (312-315)" },
+        "missing_required": { "stream": "stderr", "exit_code": 0, "detail": "empty --tagline or --content: same usage line, return nil (326-329)" },
+        "runtime_failure": { "stream": "stderr", "exit_code": 0, "detail": "loadCurrentProject error 'memory: <err>' (331-335) and p.Add error 'memory: add %q: %v' (353-361) return nil -> exit 0" }
+      },
+      "cases": [
+        { "argv": ["memory", "add"], "preconditions": "none", "expect": "stderr usage line", "exit_code": 0 },
+        { "argv": ["memory", "add", "-h"], "preconditions": "none", "expect": "stderr usage line (name guard fires before FlagSet)", "exit_code": 0 },
+        { "argv": ["memory", "add", "n", "-tagline", "t"], "preconditions": "none", "expect": "stderr usage line (content missing)", "exit_code": 0 },
+        { "argv": ["memory", "remember", "n", "-tagline", "t", "-content", "c", "-tags", "a, b ,,"], "preconditions": "project memory writable; entry name free", "expect": "stdout 'added \"n\" to project memory'; tags stored as [a b]", "exit_code": 0 },
+        { "argv": ["memory", "add", "dup", "-tagline", "t", "-content", "c"], "preconditions": "entry 'dup' already exists", "expect": "stderr 'memory: add \"dup\": <err>'", "exit_code": 0 }
+      ]
+    },
+    {
+      "command": "agents list",
+      "aliases": ["ls"],
+      "owner": "M4",
+      "sources": [
+        "internal/agentscli/agentscli.go:Run:37-60 (list|ls:44-45)",
+        "internal/agentscli/agentscli.go:cmdList:117-158 (FlagSet:118)",
+        "internal/agentscli/agentscli.go:loadForCWD:92-113",
+        "cmd/seek/main.go:run:870-872, main:774-791"
+      ],
+      "flags": [],
+      "positionals": {
+        "entries": [],
+        "count_rule": "fs.NArg() > 0 -> usage + error (agentscli.go:127-130)",
+        "extra_positionals": "rejected",
+        "notes": "registry precedence project > user > config > builtin (loadForCWD mirrors startup)"
+      },
+      "parsing": {
+        "mechanism": "flag.FlagSet (no flags declared — agentscli.go:118-123 defines none)",
+        "flagset_name": "seek agents list",
+        "error_handling": "ContinueOnError",
+        "output": "stderr (agentscli.go:119)",
+        "usage_style": "custom fs.Usage 'Usage: seek agents list' + PrintDefaults stderr (120-123)",
+        "positional_termination": "stops at first non-flag; any positional rejected",
+        "dashdash": "supported by flag.Parse (a '--' makes following tokens positional -> rejected)",
+        "reorder": "none",
+        "dash_equivalence": "single/double dash equivalent (Go flag)"
+      },
+      "help": {
+        "forms": ["-h", "--help (via flag.ErrHelp)"],
+        "stream": "stderr",
+        "exit_code": 1,
+        "notes": "ErrHelp returned verbatim (124-126) -> main exit 1; group 'seek agents help' stdout/0 (52-54)"
+      },
+      "errors": {
+        "unknown_flag": { "stream": "stderr", "exit_code": 1, "detail": "flag error + usage stderr -> exit 1" },
+        "positional_error": { "stream": "stderr", "exit_code": 1, "detail": "'list: unexpected argument %q' + usage (129)" },
+        "runtime_failure": { "stream": "stderr", "exit_code": 1, "detail": "loadForCWD error returned -> seek: exit 1 (132-135); per-definition load errors are stderr footer lines but exit stays 0 (151-156)" }
+      },
+      "cases": [
+        { "argv": ["agents", "list", "extra"], "preconditions": "none", "expect": "usage stderr + 'list: unexpected argument \"extra\"'", "exit_code": 1 },
+        { "argv": ["agents", "ls", "-h"], "preconditions": "none", "expect": "usage stderr + 'seek: flag: help requested'", "exit_code": 1 },
+        { "argv": ["agents", "list"], "preconditions": "any", "expect": "stdout count line + TYPE/ORIGIN/LANE/DESCRIPTION table + overrides footers; definition load errors on stderr without failing", "exit_code": 0 }
+      ]
+    },
+    {
+      "command": "agents check",
+      "aliases": [],
+      "owner": "M4",
+      "sources": [
+        "internal/agentscli/agentscli.go:Run:46-47",
+        "internal/agentscli/agentscli.go:cmdCheck:191-235 (FlagSet:192)",
+        "cmd/seek/main.go:main:774-791"
+      ],
+      "flags": [],
+      "positionals": {
+        "entries": [],
+        "count_rule": "fs.NArg() > 0 -> usage + error (agentscli.go:201-204)",
+        "extra_positionals": "rejected",
+        "notes": "validates load-time shape only; tool/provider legality is spawn-time (printHelp:80-81)"
+      },
+      "parsing": {
+        "mechanism": "flag.FlagSet (no flags declared — agentscli.go:192-197 defines none)",
+        "flagset_name": "seek agents check",
+        "error_handling": "ContinueOnError",
+        "output": "stderr (agentscli.go:193)",
+        "usage_style": "custom fs.Usage 'Usage: seek agents check' + PrintDefaults stderr (194-197)",
+        "positional_termination": "stops at first non-flag; any positional rejected",
+        "dashdash": "supported by flag.Parse",
+        "reorder": "none",
+        "dash_equivalence": "single/double dash equivalent (Go flag)"
+      },
+      "help": {
+        "forms": ["-h", "--help (via flag.ErrHelp)"],
+        "stream": "stderr",
+        "exit_code": 1,
+        "notes": "ErrHelp returned verbatim (198-200) -> main exit 1; group help stdout/0"
+      },
+      "errors": {
+        "unknown_flag": { "stream": "stderr", "exit_code": 1, "detail": "flag error + usage stderr -> exit 1" },
+        "positional_error": { "stream": "stderr", "exit_code": 1, "detail": "'check: unexpected argument %q' + usage (203)" },
+        "runtime_failure": { "stream": "stdout+stderr", "exit_code": 1, "detail": "definition errors print 'error: <e>' lines to STDOUT (231-233), then 'check: %d agent definition error(s)' returned -> 'seek:' stderr exit 1 (234); loadForCWD hard error -> exit 1 (206-209)" }
+      },
+      "cases": [
+        { "argv": ["agents", "check", "extra"], "preconditions": "none", "expect": "usage stderr + 'check: unexpected argument \"extra\"'", "exit_code": 1 },
+        { "argv": ["agents", "check"], "preconditions": "no user/project definition files", "expect": "stdout slot counts + 'no agent definition files found — only the three built-ins will load'", "exit_code": 0 },
+        { "argv": ["agents", "check"], "preconditions": "definition files all valid", "expect": "stdout 'ok — all agent definitions valid'", "exit_code": 0 },
+        { "argv": ["agents", "check"], "preconditions": "one invalid definition file", "expect": "stdout 'error: ...' lines + 'seek: check: 1 agent definition error(s)' stderr", "exit_code": 1 }
+      ]
+    },
+    {
+      "command": "agents create",
+      "aliases": ["new"],
+      "owner": "M4",
+      "sources": [
+        "internal/agentscli/agentscli.go:Run:48-49 (create|new)",
+        "internal/agentscli/agentscli.go:cmdCreate:239-303 (FlagSet:240, name-peel:266-270)",
+        "internal/agentsmgr/agentsmgr.go:Create:77-117 (description/name validation:78-83, exists refusal:116-117)",
+        "cmd/seek/main.go:main:774-791"
+      ],
+      "flags": [
+        { "name": "description", "aliases": [], "type": "string", "declared_default": "", "repeatable": false, "help": "one-line summary shown when picking a type (required; enforced in agentsmgr.Create:81-83)" },
+        { "name": "body", "aliases": [], "type": "string", "declared_default": "", "repeatable": false, "help": "role prompt (the markdown body); empty scaffolds a TODO prompt" },
+        { "name": "tools", "aliases": [], "type": "string", "declared_default": "", "repeatable": false, "help": "comma-separated tool whitelist; empty = inherit the parent registry" },
+        { "name": "provider", "aliases": [], "type": "string", "declared_default": "", "repeatable": false, "help": "lane override: deepseek | glm" },
+        { "name": "model", "aliases": [], "type": "string", "declared_default": "", "repeatable": false, "help": "model id within the lane" },
+        { "name": "effort", "aliases": [], "type": "string", "declared_default": "", "repeatable": false, "help": "low | medium | high" },
+        { "name": "workflow", "aliases": [], "type": "string", "declared_default": "", "repeatable": false, "help": "plan-analyze (tighten-only; the only legal value)" },
+        { "name": "max-turns", "aliases": [], "type": "int", "declared_default": 0, "repeatable": false, "help": "child turn cap; 0 = inherit" },
+        { "name": "project", "aliases": [], "type": "bool", "declared_default": false, "repeatable": false, "help": "write <cwd>/.seek/agents/ instead of ~/.seek/agents/" }
+      ],
+      "positionals": {
+        "entries": [ { "name": "<name>", "required": true, "variadic": false } ],
+        "count_rule": "name peeled from args[0] (must not start with '-'); NArg != 0 after parse -> usage + error (266-277)",
+        "extra_positionals": "rejected",
+        "notes": "no --force: existing target refused by agentsmgr.Create (agentsmgr.go:116-117)"
+      },
+      "parsing": {
+        "mechanism": "hand-written name-peel + flag.FlagSet",
+        "flagset_name": "seek agents create",
+        "error_handling": "ContinueOnError",
+        "output": "stderr (agentscli.go:241)",
+        "usage_style": "custom fs.Usage stderr (242-250)",
+        "positional_termination": "name consumed first; further positionals rejected",
+        "dashdash": "supported by flag.Parse on args[1:]",
+        "reorder": "name peeled from front (262-270)",
+        "dash_equivalence": "single/double dash equivalent; repeated scalar flags last-wins"
+      },
+      "help": {
+        "forms": ["-h/--help after <name> (via flag.ErrHelp)"],
+        "stream": "stderr",
+        "exit_code": 1,
+        "notes": "leading -h: usage stderr + 'create: <name> must be the first argument' exit 1 (266-269); 'create name -h' -> ErrHelp returned -> main exit 1; group help stdout/0"
+      },
+      "errors": {
+        "unknown_flag": { "stream": "stderr", "exit_code": 1, "detail": "flag error + usage stderr -> exit 1" },
+        "positional_error": { "stream": "stderr", "exit_code": 1, "detail": "'create: <name> must be the first argument ...' (268) or 'create: unexpected extra positional argument(s): %v' + usage (276)" },
+        "missing_required": { "stream": "stderr", "exit_code": 1, "detail": "empty --description: 'agentsmgr: create: Description is required (agent types won't load without it)' via seek: (agentsmgr.go:81-83)" },
+        "runtime_failure": { "stream": "stderr", "exit_code": 1, "detail": "agentsmgr.Create errors (bad name, parse rejection, existing target, scope escape) -> seek: exit 1 (296-299)" }
+      },
+      "cases": [
+        { "argv": ["agents", "create"], "preconditions": "none", "expect": "usage stderr + 'create: <name> must be the first argument'", "exit_code": 1 },
+        { "argv": ["agents", "create", "t"], "preconditions": "none", "expect": "'seek: agentsmgr: create: Description is required ...' stderr", "exit_code": 1 },
+        { "argv": ["agents", "new", "t", "--description", "d", "extra"], "preconditions": "none", "expect": "usage stderr + 'create: unexpected extra positional argument(s): [extra]'", "exit_code": 1 },
+        { "argv": ["agents", "create", "t", "--description", "d"], "preconditions": "target absent", "expect": "stdout 'created t -> <path>' + next-launch note (300-301)", "exit_code": 0 },
+        { "argv": ["agents", "create", "t", "--description", "d"], "preconditions": "~/.seek/agents/t.md exists", "expect": "'agentsmgr: create: ... already exists ... there is no --force' via seek: stderr", "exit_code": 1 }
+      ]
+    },
+    {
+      "command": "agents remove",
+      "aliases": ["rm"],
+      "owner": "M4",
+      "sources": [
+        "internal/agentscli/agentscli.go:Run:50-51 (remove|rm)",
+        "internal/agentscli/agentscli.go:cmdRemove:307-339 (FlagSet:308)",
+        "cmd/seek/main.go:main:774-791"
+      ],
+      "flags": [],
+      "positionals": {
+        "entries": [ { "name": "<name>", "required": true, "variadic": false } ],
+        "count_rule": "fs.NArg() != 1 -> usage + error (agentscli.go:323-326)",
+        "extra_positionals": "rejected",
+        "notes": "user scope only; built-in names refused via live registry (327-333)"
+      },
+      "parsing": {
+        "mechanism": "flag.FlagSet (no flags declared — agentscli.go:308-319 defines none)",
+        "flagset_name": "seek agents remove",
+        "error_handling": "ContinueOnError",
+        "output": "stderr (agentscli.go:309)",
+        "usage_style": "custom fs.Usage stderr (310-319)",
+        "positional_termination": "stops at first non-flag; flags must precede <name>",
+        "dashdash": "supported by flag.Parse",
+        "reorder": "none",
+        "dash_equivalence": "single/double dash equivalent (Go flag)"
+      },
+      "help": {
+        "forms": ["-h", "--help (via flag.ErrHelp)"],
+        "stream": "stderr",
+        "exit_code": 1,
+        "notes": "ErrHelp returned verbatim (320-322) -> main exit 1; group help stdout/0"
+      },
+      "errors": {
+        "unknown_flag": { "stream": "stderr", "exit_code": 1, "detail": "flag error + usage stderr -> exit 1" },
+        "positional_error": { "stream": "stderr", "exit_code": 1, "detail": "'remove: exactly one <name> is required' + usage (325)" },
+        "runtime_failure": { "stream": "stderr", "exit_code": 1, "detail": "loadForCWD / agentsmgr.Remove errors (builtin refusal, missing file, project scope) -> seek: exit 1 (329-336)" }
+      },
+      "cases": [
+        { "argv": ["agents", "remove"], "preconditions": "none", "expect": "usage stderr + 'remove: exactly one <name> is required'", "exit_code": 1 },
+        { "argv": ["agents", "rm", "general-purpose"], "preconditions": "built-in type", "expect": "agentsmgr.Remove builtin refusal via seek: stderr", "exit_code": 1 },
+        { "argv": ["agents", "remove", "user-type"], "preconditions": "~/.seek/agents/user-type.md exists", "expect": "stdout 'removed user-type (<path>)'", "exit_code": 0 }
+      ]
+    },
+    {
+      "command": "session export",
+      "aliases": [],
+      "owner": "M2",
+      "sources": [
+        "internal/sessioncli/sessioncli.go:Run:27-41 (export:34-35)",
+        "internal/sessioncli/sessioncli.go:cmdExport:65-115 (FlagSet:66, -o:67, flagsFirst call:69)",
+        "internal/sessioncli/sessioncli.go:flagsFirst:123-143",
+        "cmd/seek/main.go:run:879-881, main:774-791"
+      ],
+      "flags": [
+        { "name": "o", "aliases": [], "type": "string", "declared_default": "", "repeatable": false, "help": "write markdown to this file instead of stdout; flagsFirst recognizes -o/--o with separate value and -o=/--o= forms (sessioncli.go:128-135); Go flag also accepts --o natively" }
+      ],
+      "positionals": {
+        "entries": [ { "name": "[id]", "required": false, "variadic": false } ],
+        "count_rule": "fs.NArg() > 1 -> usage error (sessioncli.go:72-74); NArg==1 -> id; NArg==0 -> most-recently-updated session (75-96)",
+        "extra_positionals": "rejected (>1)",
+        "notes": "id resolution: positional > store.Latest(); no sessions -> error (93-95)"
+      },
+      "parsing": {
+        "mechanism": "flag.FlagSet with flagsFirst reorder",
+        "flagset_name": "session export",
+        "error_handling": "ContinueOnError",
+        "output": "stderr (sessioncli.go:68)",
+        "usage_style": "default flag usage to stderr (no custom fs.Usage)",
+        "positional_termination": "neutralized by flagsFirst: flag tokens (with values) moved before positionals so both 'export <id> -o f' and 'export -o f <id>' parse (117-143)",
+        "dashdash": "'--' is bucketed as a flag token by flagsFirst (len>1, '-' prefix) and still terminates flag.Parse; unknown flags pass through the reorder for flag.Parse to report (122)",
+        "reorder": "flagsFirst (sessioncli.go:123-143); bare trailing -o left for flag.Parse to report missing value (133)",
+        "dash_equivalence": "single/double dash equivalent; repeated -o last-wins"
+      },
+      "help": {
+        "forms": ["-h", "--help (via flag.ErrHelp after reorder)"],
+        "stream": "stderr",
+        "exit_code": 1,
+        "notes": "ErrHelp returned verbatim (69-71) -> main 'seek: flag: help requested' exit 1; group 'seek session help' stdout/0 (36-38)"
+      },
+      "errors": {
+        "unknown_flag": { "stream": "stderr", "exit_code": 1, "detail": "flagsFirst passes unknown flags through; flag error + default usage stderr -> exit 1" },
+        "positional_error": { "stream": "stderr", "exit_code": 1, "detail": "'usage: seek session export [id] [-o <file>]' (73)" },
+        "runtime_failure": { "stream": "stderr", "exit_code": 1, "detail": "store error 'session store: %w' (82); unknown id 'export: %w (see `seek -list`)' (87); no sessions 'no sessions in %s — pass an id' (94); write failures 'export: write ...' (101,107,111) — all seek: exit 1" }
+      },
+      "cases": [
+        { "argv": ["session", "export", "-h"], "preconditions": "none", "expect": "default usage stderr + 'seek: flag: help requested'", "exit_code": 1 },
+        { "argv": ["session", "export", "a", "b"], "preconditions": "none", "expect": "'usage: seek session export [id] [-o <file>]'", "exit_code": 1 },
+        { "argv": ["session", "export"], "preconditions": "no saved sessions", "expect": "'no sessions in <dir> — pass an id (see `seek -list`)' via seek: stderr", "exit_code": 1 },
+        { "argv": ["session", "export", "some-id", "-o", "out.md"], "preconditions": "session exists (natural id-first order)", "expect": "flagsFirst reorders; markdown written to out.md (parents created); stderr 'exported session <id> → out.md (<n> bytes)'", "exit_code": 0 },
+        { "argv": ["session", "export"], "preconditions": "sessions exist", "expect": "latest session's markdown on stdout; source JSONL untouched", "exit_code": 0 }
+      ]
+    },
+    {
+      "command": "checkpoint list",
+      "aliases": ["ls"],
+      "owner": "M2",
+      "sources": [
+        "internal/checkpointcli/checkpointcli.go:Run:38-56 (list|ls:45-46)",
+        "internal/checkpointcli/checkpointcli.go:cmdList:147-187 (FlagSet:148)",
+        "internal/checkpointcli/checkpointcli.go:resolveSession:94-125",
+        "cmd/seek/main.go:run:885-887, main:774-791"
+      ],
+      "flags": [
+        { "name": "session", "aliases": [], "type": "string", "declared_default": "", "repeatable": false, "help": "session id (default: most-recently-updated)" },
+        { "name": "json", "aliases": [], "type": "bool", "declared_default": false, "repeatable": false, "help": "emit JSONL" }
+      ],
+      "positionals": {
+        "entries": [],
+        "count_rule": "no NArg check (checkpointcli.go:147-187)",
+        "extra_positionals": "ignored",
+        "notes": "session resolution --session > store.Latest() (resolveSession:100-104)"
+      },
+      "parsing": {
+        "mechanism": "flag.FlagSet",
+        "flagset_name": "checkpoint list",
+        "error_handling": "ContinueOnError",
+        "output": "stderr — no fs.SetOutput call; flag.FlagSet default output is os.Stderr (checkpointcli.go:148)",
+        "usage_style": "default flag usage ('Usage of checkpoint list:' + PrintDefaults) to stderr; no custom fs.Usage",
+        "positional_termination": "stops at first non-flag; no reorder",
+        "dashdash": "supported by flag.Parse",
+        "reorder": "none",
+        "dash_equivalence": "single/double dash equivalent; repeated scalar flags last-wins"
+      },
+      "help": {
+        "forms": ["-h", "--help (via flag.ErrHelp)"],
+        "stream": "stderr",
+        "exit_code": 1,
+        "notes": "ErrHelp returned verbatim (151-153) -> main exit 1; group 'seek checkpoint help' stdout/0 (51-53)"
+      },
+      "errors": {
+        "unknown_flag": { "stream": "stderr", "exit_code": 1, "detail": "flag error + default usage stderr -> exit 1" },
+        "positional_error": { "stream": "n/a", "exit_code": 0, "detail": "not applicable: no positional validation (147-187)" },
+        "runtime_failure": { "stream": "stderr", "exit_code": 1, "detail": "'resolve session: %w' (106), 'no session to operate on — pass --session <id> or run `seek -list`' (109), ListGitCheckpoints error (158-161) -> seek: exit 1" }
+      },
+      "cases": [
+        { "argv": ["checkpoint", "list", "-h"], "preconditions": "none", "expect": "default usage stderr + 'seek: flag: help requested'", "exit_code": 1 },
+        { "argv": ["checkpoint", "ls"], "preconditions": "no sessions", "expect": "'no session to operate on — pass --session <id> or run `seek -list`' via seek: stderr", "exit_code": 1 },
+        { "argv": ["checkpoint", "list", "--session", "sid"], "preconditions": "session exists, no checkpoints", "expect": "stdout 'no git checkpoints for session sid'", "exit_code": 0 },
+        { "argv": ["checkpoint", "list", "--json"], "preconditions": "checkpoints exist", "expect": "one JSON object per line on stdout (JSONL, 162-169)", "exit_code": 0 }
+      ]
+    },
+    {
+      "command": "checkpoint restore",
+      "aliases": [],
+      "owner": "M2",
+      "sources": [
+        "internal/checkpointcli/checkpointcli.go:Run:47-48",
+        "internal/checkpointcli/checkpointcli.go:cmdRestore:201-240 (FlagSet:202)",
+        "internal/checkpointcli/checkpointcli.go:parseTurnArg:244-254",
+        "cmd/seek/main.go:main:774-791"
+      ],
+      "flags": [
+        { "name": "session", "aliases": [], "type": "string", "declared_default": "", "repeatable": false, "help": "session id" },
+        { "name": "dry-run", "aliases": [], "type": "bool", "declared_default": false, "repeatable": false, "help": "list affected files without modifying the working tree" },
+        { "name": "force", "aliases": [], "type": "bool", "declared_default": false, "repeatable": false, "help": "overwrite a dirty working tree" }
+      ],
+      "positionals": {
+        "entries": [ { "name": "<turn|last>", "required": true, "variadic": false } ],
+        "count_rule": "len(fs.Args())==0 -> usage error (210-212); only rest[0] read — extra positionals ignored",
+        "extra_positionals": "ignored (only rest[0] consumed, 213)",
+        "notes": "turn accepts positive integer or 'last'/'latest'/'-1' -> sentinel 0 (parseTurnArg:244-254); '-1' starts with '-' so it needs '--' to pass flag.Parse"
+      },
+      "parsing": {
+        "mechanism": "flag.FlagSet",
+        "flagset_name": "checkpoint restore",
+        "error_handling": "ContinueOnError",
+        "output": "stderr — default os.Stderr (no SetOutput, checkpointcli.go:202)",
+        "usage_style": "default flag usage to stderr",
+        "positional_termination": "stops at first non-flag; flags must precede <turn>",
+        "dashdash": "supported; 'restore -- -1' delivers the -1 sentinel (flag.Parse would otherwise reject -1 as undefined)",
+        "reorder": "none",
+        "dash_equivalence": "single/double dash equivalent; repeated scalar flags last-wins"
+      },
+      "help": {
+        "forms": ["-h", "--help (via flag.ErrHelp)"],
+        "stream": "stderr",
+        "exit_code": 1,
+        "notes": "ErrHelp returned verbatim (206-208) -> main exit 1; group help stdout/0"
+      },
+      "errors": {
+        "unknown_flag": { "stream": "stderr", "exit_code": 1, "detail": "flag error + default usage stderr -> exit 1" },
+        "missing_positional": { "stream": "stderr", "exit_code": 1, "detail": "'usage: seek checkpoint restore <turn|last>' (211)" },
+        "bad_positional": { "stream": "stderr", "exit_code": 1, "detail": "'invalid turn %q: pass a positive integer or `last`' (251)" },
+        "runtime_failure": { "stream": "stderr", "exit_code": 1, "detail": "resolveSession / RestoreGit errors (dirty tree without --force, missing checkpoint) -> seek: exit 1 (217-228)" }
+      },
+      "cases": [
+        { "argv": ["checkpoint", "restore"], "preconditions": "none", "expect": "'usage: seek checkpoint restore <turn|last>' via seek: stderr", "exit_code": 1 },
+        { "argv": ["checkpoint", "restore", "abc"], "preconditions": "none", "expect": "'invalid turn \"abc\": pass a positive integer or `last`'", "exit_code": 1 },
+        { "argv": ["checkpoint", "restore", "--dry-run", "last"], "preconditions": "session with checkpoints exists", "expect": "stdout 'would restore turn <n> (commit <sha>); <k> affected file(s):' + file list; tree untouched", "exit_code": 0 },
+        { "argv": ["checkpoint", "restore", "--", "-1"], "preconditions": "session with checkpoints exists; clean tree", "expect": "-1 sentinel -> latest checkpoint restored; stdout 'restored turn <n>: ... HEAD unchanged at <sha>'", "exit_code": 0 }
+      ]
+    },
+    {
+      "command": "checkpoint prune",
+      "aliases": [],
+      "owner": "M2",
+      "sources": [
+        "internal/checkpointcli/checkpointcli.go:Run:49-50",
+        "internal/checkpointcli/checkpointcli.go:cmdPrune:258-279 (FlagSet:259)",
+        "internal/checkpointcli/checkpointcli.go:parseBefore:132-143",
+        "cmd/seek/main.go:main:774-791"
+      ],
+      "flags": [
+        { "name": "session", "aliases": [], "type": "string", "declared_default": "", "repeatable": false, "help": "session id" },
+        { "name": "before", "aliases": [], "type": "string", "declared_default": "", "repeatable": false, "help": "delete checkpoints older than this date; required — RFC3339 or YYYY-MM-DD (parseBefore:132-143)" }
+      ],
+      "positionals": {
+        "entries": [],
+        "count_rule": "no NArg check (checkpointcli.go:258-279)",
+        "extra_positionals": "ignored",
+        "notes": "--before validated before session resolution (265-268)"
+      },
+      "parsing": {
+        "mechanism": "flag.FlagSet",
+        "flagset_name": "checkpoint prune",
+        "error_handling": "ContinueOnError",
+        "output": "stderr — default os.Stderr (no SetOutput, checkpointcli.go:259)",
+        "usage_style": "default flag usage to stderr",
+        "positional_termination": "stops at first non-flag; no reorder",
+        "dashdash": "supported by flag.Parse",
+        "reorder": "none",
+        "dash_equivalence": "single/double dash equivalent; repeated scalar flags last-wins"
+      },
+      "help": {
+        "forms": ["-h", "--help (via flag.ErrHelp)"],
+        "stream": "stderr",
+        "exit_code": 1,
+        "notes": "ErrHelp returned verbatim (262-264) -> main exit 1; group help stdout/0"
+      },
+      "errors": {
+        "unknown_flag": { "stream": "stderr", "exit_code": 1, "detail": "flag error + default usage stderr -> exit 1" },
+        "missing_required": { "stream": "stderr", "exit_code": 1, "detail": "'--before is required (RFC3339 or YYYY-MM-DD)' (134)" },
+        "bad_flag_value": { "stream": "stderr", "exit_code": 1, "detail": "'could not parse --before=%q (try YYYY-MM-DD or RFC3339)' (142)" },
+        "runtime_failure": { "stream": "stderr", "exit_code": 1, "detail": "resolveSession / PruneGit errors -> seek: exit 1 (269-276)" }
+      },
+      "cases": [
+        { "argv": ["checkpoint", "prune"], "preconditions": "none", "expect": "'--before is required (RFC3339 or YYYY-MM-DD)' via seek: stderr", "exit_code": 1 },
+        { "argv": ["checkpoint", "prune", "--before", "not-a-date"], "preconditions": "none", "expect": "'could not parse --before=\"not-a-date\" ...'", "exit_code": 1 },
+        { "argv": ["checkpoint", "prune", "--before", "2026-01-01"], "preconditions": "session exists", "expect": "stdout 'pruned <n> checkpoint(s) before 2026-01-01T00:00:00Z'", "exit_code": 0 }
+      ]
+    },
+    {
+      "command": "undo",
+      "aliases": [],
+      "owner": "M2",
+      "sources": [
+        "cmd/seek/main.go:run:888-890 (pre-parse verb undo -> checkpointcli.RunUndo)",
+        "internal/checkpointcli/checkpointcli.go:RunUndo:61-63, cmdUndo:283-316 (FlagSet:284)",
+        "cmd/seek/main.go:main:774-791"
+      ],
+      "flags": [
+        { "name": "session", "aliases": [], "type": "string", "declared_default": "", "repeatable": false, "help": "session id" },
+        { "name": "n", "aliases": [], "type": "int", "declared_default": 1, "repeatable": false, "help": "number of undo steps" },
+        { "name": "force", "aliases": [], "type": "bool", "declared_default": false, "repeatable": false, "help": "skip external-modification check" }
+      ],
+      "positionals": {
+        "entries": [ { "name": "[path]", "required": false, "variadic": false } ],
+        "count_rule": "rest[0] optional, absolutized via filepath.Abs (292-298); extra positionals ignored",
+        "extra_positionals": "ignored",
+        "notes": "file-level undo (per-write granularity), distinct from git-level checkpoint restore; top-level verb, not under 'checkpoint'"
+      },
+      "parsing": {
+        "mechanism": "flag.FlagSet",
+        "flagset_name": "undo",
+        "error_handling": "ContinueOnError",
+        "output": "stderr — default os.Stderr (no SetOutput, checkpointcli.go:284)",
+        "usage_style": "default flag usage to stderr",
+        "positional_termination": "stops at first non-flag; flags must precede [path]",
+        "dashdash": "supported by flag.Parse",
+        "reorder": "none",
+        "dash_equivalence": "single/double dash equivalent; repeated scalar flags last-wins"
+      },
+      "help": {
+        "forms": ["-h", "--help (via flag.ErrHelp)"],
+        "stream": "stderr",
+        "exit_code": 1,
+        "notes": "ErrHelp returned verbatim (288-290) -> main exit 1. 'seek undo help': 'help' is an optional path positional -> attempts undo of file 'help' (no help verb). Top-level 'seek help' stdout/0 lists undo."
+      },
+      "errors": {
+        "unknown_flag": { "stream": "stderr", "exit_code": 1, "detail": "flag error + default usage stderr -> exit 1" },
+        "runtime_failure": { "stream": "stderr", "exit_code": 1, "detail": "resolveSession error (299-302) or m.Undo error (309-311) -> seek: exit 1; partial results printed before the error (304-308)" }
+      },
+      "cases": [
+        { "argv": ["undo", "-h"], "preconditions": "none", "expect": "default usage stderr + 'seek: flag: help requested'", "exit_code": 1 },
+        { "argv": ["undo"], "preconditions": "no sessions", "expect": "'no session to operate on ...' via seek: stderr", "exit_code": 1 },
+        { "argv": ["undo"], "preconditions": "session exists, nothing to undo", "expect": "stdout '(nothing to undo)'", "exit_code": 0 },
+        { "argv": ["undo", "-n", "2", "some/file"], "preconditions": "session with file checkpoints for the path", "expect": "stdout 'undone: <path>' per step (up to 2)", "exit_code": 0 }
+      ]
+    },
+    {
+      "command": "redo",
+      "aliases": [],
+      "owner": "M2",
+      "sources": [
+        "cmd/seek/main.go:run:891-893 (pre-parse verb redo -> checkpointcli.RunRedo)",
+        "internal/checkpointcli/checkpointcli.go:RunRedo:66-68, cmdRedo:320-353 (FlagSet:321)",
+        "cmd/seek/main.go:main:774-791"
+      ],
+      "flags": [
+        { "name": "session", "aliases": [], "type": "string", "declared_default": "", "repeatable": false, "help": "session id" },
+        { "name": "n", "aliases": [], "type": "int", "declared_default": 1, "repeatable": false, "help": "number of redo steps" },
+        { "name": "force", "aliases": [], "type": "bool", "declared_default": false, "repeatable": false, "help": "skip external-modification check" }
+      ],
+      "positionals": {
+        "entries": [ { "name": "[path]", "required": false, "variadic": false } ],
+        "count_rule": "rest[0] optional, absolutized (329-335); extra positionals ignored",
+        "extra_positionals": "ignored",
+        "notes": "mirror of undo"
+      },
+      "parsing": {
+        "mechanism": "flag.FlagSet",
+        "flagset_name": "redo",
+        "error_handling": "ContinueOnError",
+        "output": "stderr — default os.Stderr (no SetOutput, checkpointcli.go:321)",
+        "usage_style": "default flag usage to stderr",
+        "positional_termination": "stops at first non-flag; flags must precede [path]",
+        "dashdash": "supported by flag.Parse",
+        "reorder": "none",
+        "dash_equivalence": "single/double dash equivalent; repeated scalar flags last-wins"
+      },
+      "help": {
+        "forms": ["-h", "--help (via flag.ErrHelp)"],
+        "stream": "stderr",
+        "exit_code": 1,
+        "notes": "ErrHelp returned verbatim (325-327) -> main exit 1; 'redo help' treats help as a path positional"
+      },
+      "errors": {
+        "unknown_flag": { "stream": "stderr", "exit_code": 1, "detail": "flag error + default usage stderr -> exit 1" },
+        "runtime_failure": { "stream": "stderr", "exit_code": 1, "detail": "resolveSession / m.Redo errors -> seek: exit 1 (336-348); partial results printed first" }
+      },
+      "cases": [
+        { "argv": ["redo", "-h"], "preconditions": "none", "expect": "default usage stderr + 'seek: flag: help requested'", "exit_code": 1 },
+        { "argv": ["redo"], "preconditions": "session exists, nothing to redo", "expect": "stdout '(nothing to redo)'", "exit_code": 0 },
+        { "argv": ["redo", "-n", "1"], "preconditions": "session with a prior undo", "expect": "stdout 'redone: <path>'", "exit_code": 0 }
+      ]
+    },
+    {
+      "command": "hooks list",
+      "aliases": ["ls"],
+      "owner": "M2",
+      "sources": [
+        "internal/hookscli/hookscli.go:Run:32-55 (list|ls:39-40)",
+        "internal/hookscli/hookscli.go:cmdList:103-144 (FlagSet:104, SetOutput:105)",
+        "internal/hookscli/hookscli.go:gateForCWD:82-99, loadAverages:146-155",
+        "cmd/seek/main.go:run:898-900, main:774-791"
+      ],
+      "flags": [
+        { "name": "by-name", "aliases": [], "type": "bool", "declared_default": false, "repeatable": false, "help": "sort by name instead of event group" }
+      ],
+      "positionals": {
+        "entries": [],
+        "count_rule": "no NArg check (cmdList:103-144)",
+        "extra_positionals": "ignored (become fs.Args(), never read)",
+        "notes": "untrusted project hooks excluded with stderr warning, no trust prompt (gateForCWD:82-99); audit averages best-effort, read errors ignored (loadAverages:150-153)"
+      },
+      "parsing": {
+        "mechanism": "flag.FlagSet",
+        "flagset_name": "hooks list",
+        "error_handling": "ContinueOnError",
+        "output": "stderr (SetOutput, hookscli.go:105)",
+        "usage_style": "default flag usage to stderr (no custom Usage)",
+        "positional_termination": "stops at first non-flag; trailing flags after a positional are not parsed",
+        "dashdash": "supported by flag.Parse",
+        "reorder": "none",
+        "dash_equivalence": "single/double dash equivalent; repeated scalar flags last-wins"
+      },
+      "help": {
+        "forms": ["-h", "--help (via flag.ErrHelp)"],
+        "stream": "stderr",
+        "exit_code": 1,
+        "notes": "ErrHelp returned verbatim (107-109) -> main 'seek: flag: help requested' exit 1. Group-level 'hooks help' is stdout/0 (Run:47-49)."
+      },
+      "errors": {
+        "unknown_flag": { "stream": "stderr", "exit_code": 1, "detail": "flag error + default usage stderr -> returned -> seek: exit 1 (107-109)" },
+        "runtime_failure": { "stream": "stderr", "exit_code": 1, "detail": "gateForCWD load error returned (110-113) -> seek: exit 1; untrusted-project warnings are stderr-only, not fatal" }
+      },
+      "cases": [
+        { "argv": ["hooks", "list", "-h"], "preconditions": "none", "expect": "default usage stderr + 'seek: flag: help requested'", "exit_code": 1 },
+        { "argv": ["hooks", "list"], "preconditions": "no hooks configured", "expect": "stdout 'no hooks configured'", "exit_code": 0 },
+        { "argv": ["hooks", "list", "--by-name"], "preconditions": "hooks configured", "expect": "stdout table EVENT/SOURCE/NAME/TOOL/AVG_MS/COMMAND sorted by name", "exit_code": 0 },
+        { "argv": ["hooks", "list", "extra"], "preconditions": "none", "expect": "extra positional ignored, same as no-args listing", "exit_code": 0 },
+        { "argv": ["hooks", "list", "--bogus"], "preconditions": "none", "expect": "flag provided but not defined: -bogus + usage stderr", "exit_code": 1 }
+      ]
+    },
+    {
+      "command": "hooks check",
+      "aliases": [],
+      "owner": "M2",
+      "sources": [
+        "internal/hookscli/hookscli.go:Run:32-55 (check:41-42)",
+        "internal/hookscli/hookscli.go:cmdCheck:159-231 (FlagSet:160)",
+        "cmd/seek/main.go:run:898-900, main:774-791"
+      ],
+      "flags": [
+        { "name": "event", "aliases": [], "type": "string", "declared_default": "", "repeatable": false, "help": "event name to dry-run (required)" },
+        { "name": "tool", "aliases": [], "type": "string", "declared_default": "", "repeatable": false, "help": "tool name for pre_tool/post_tool matching" }
+      ],
+      "positionals": {
+        "entries": [],
+        "count_rule": "no NArg check (cmdCheck:159-231)",
+        "extra_positionals": "ignored",
+        "notes": "event/tool come from flags only, never positionals"
+      },
+      "parsing": {
+        "mechanism": "flag.FlagSet",
+        "flagset_name": "hooks check",
+        "error_handling": "ContinueOnError",
+        "output": "stderr (SetOutput, hookscli.go:161)",
+        "usage_style": "default flag usage to stderr (no custom Usage)",
+        "positional_termination": "stops at first non-flag",
+        "dashdash": "supported by flag.Parse",
+        "reorder": "none",
+        "dash_equivalence": "single/double dash equivalent; repeated scalar flags last-wins"
+      },
+      "help": {
+        "forms": ["-h", "--help (via flag.ErrHelp)"],
+        "stream": "stderr",
+        "exit_code": 1,
+        "notes": "ErrHelp returned -> seek: exit 1. Missing --event prints its own usage line to stderr but exits 0 (167-170) — UX-error posture, distinct from flag errors."
+      },
+      "errors": {
+        "unknown_flag": { "stream": "stderr", "exit_code": 1, "detail": "flag error + usage stderr -> returned -> exit 1" },
+        "missing_event": { "stream": "stderr", "exit_code": 0, "detail": "'usage: seek hooks check --event <e> [--tool <t>]' stderr, returns nil (167-170)" },
+        "unknown_event": { "stream": "stderr", "exit_code": 0, "detail": "'hooks: unknown event %q' stderr, returns nil (199-202)" },
+        "runtime_failure": { "stream": "stderr", "exit_code": 1, "detail": "gateForCWD load error returned -> seek: exit 1; empty pool / no match are stdout exit 0 (203-206, 227-229)" }
+      },
+      "cases": [
+        { "argv": ["hooks", "check", "-h"], "preconditions": "none", "expect": "default usage stderr + 'seek: flag: help requested'", "exit_code": 1 },
+        { "argv": ["hooks", "check"], "preconditions": "none", "expect": "stderr 'usage: seek hooks check --event <e> [--tool <t>]'", "exit_code": 0 },
+        { "argv": ["hooks", "check", "--event", "bogus"], "preconditions": "none", "expect": "stderr 'hooks: unknown event \"bogus\"'", "exit_code": 0 },
+        { "argv": ["hooks", "check", "--event", "pre_tool"], "preconditions": "no hooks configured", "expect": "stdout 'no hooks for event pre_tool' (pre/post_tool need --tool to match)", "exit_code": 0 },
+        { "argv": ["hooks", "check", "--event", "pre_tool", "--tool", "bash"], "preconditions": "matching hook configured", "expect": "stdout dry-run match report", "exit_code": 0 }
+      ]
+    },
+    {
+      "command": "hooks trust",
+      "aliases": [],
+      "owner": "M2",
+      "sources": [
+        "internal/hookscli/hookscli.go:Run:32-55 (trust:43-44)",
+        "internal/hookscli/hookscli.go:cmdTrust:235-299 (FlagSet:236, fs.Visit:251-256)",
+        "cmd/seek/main.go:run:898-900, main:774-791"
+      ],
+      "flags": [
+        { "name": "reset", "aliases": [], "type": "string", "declared_default": "", "repeatable": false, "help": "reset trust: 'all' clears the store, empty value clears cwd, path clears that project; flag unset lists trusted projects" }
+      ],
+      "positionals": {
+        "entries": [],
+        "count_rule": "no NArg check (cmdTrust:235-299)",
+        "extra_positionals": "ignored",
+        "notes": "reset target comes from the flag value, not a positional"
+      },
+      "parsing": {
+        "mechanism": "flag.FlagSet + fs.Visit explicit-set detection",
+        "flagset_name": "hooks trust",
+        "error_handling": "ContinueOnError",
+        "output": "stderr (SetOutput, hookscli.go:237)",
+        "usage_style": "default flag usage to stderr (no custom Usage)",
+        "positional_termination": "stops at first non-flag",
+        "dashdash": "supported by flag.Parse",
+        "reorder": "none",
+        "dash_equivalence": "single/double dash equivalent; repeated scalar flags last-wins",
+        "notes": "fs.Visit (251-256) distinguishes --reset explicitly set to empty (clear cwd trust) from unset (list). Bare trailing --reset with no value is a Go flag parse error 'flag needs an argument: -reset' -> exit 1, despite the comment at 248-250 suggesting otherwise; use --reset= or --reset '' for the cwd case."
+      },
+      "help": {
+        "forms": ["-h", "--help (via flag.ErrHelp)"],
+        "stream": "stderr",
+        "exit_code": 1,
+        "notes": "ErrHelp returned -> seek: exit 1"
+      },
+      "errors": {
+        "unknown_flag": { "stream": "stderr", "exit_code": 1, "detail": "flag error + usage stderr -> returned -> exit 1" },
+        "missing_flag_value": { "stream": "stderr", "exit_code": 1, "detail": "bare trailing --reset -> 'flag needs an argument: -reset' + usage stderr -> exit 1" },
+        "runtime_failure": { "stream": "stderr", "exit_code": 0, "detail": "ResetAll/Reset errors printed to stderr, returns nil -> exit 0 (261-279); UX-error posture" }
+      },
+      "cases": [
+        { "argv": ["hooks", "trust", "-h"], "preconditions": "none", "expect": "default usage stderr + 'seek: flag: help requested'", "exit_code": 1 },
+        { "argv": ["hooks", "trust"], "preconditions": "no trusted projects", "expect": "stdout 'no trusted projects'", "exit_code": 0 },
+        { "argv": ["hooks", "trust", "--reset", "all"], "preconditions": "trust store exists", "expect": "stdout 'trust store cleared'", "exit_code": 0 },
+        { "argv": ["hooks", "trust", "--reset="], "preconditions": "cwd previously trusted", "expect": "stdout 'trust cleared for <cwd>' (explicit empty via fs.Visit)", "exit_code": 0 },
+        { "argv": ["hooks", "trust", "--reset"], "preconditions": "none", "expect": "stderr 'flag needs an argument: -reset' + usage", "exit_code": 1 }
+      ]
+    },
+    {
+      "command": "hooks audit",
+      "aliases": [],
+      "owner": "M2",
+      "sources": [
+        "internal/hookscli/hookscli.go:Run:32-55 (audit:45-46)",
+        "internal/hookscli/hookscli.go:cmdAudit:303-372 (FlagSet:304)",
+        "cmd/seek/main.go:run:898-900, main:774-791"
+      ],
+      "flags": [
+        { "name": "since", "aliases": [], "type": "duration", "declared_default": "0s", "repeatable": false, "help": "only entries newer than this window (0 = no window filter)" },
+        { "name": "tool", "aliases": [], "type": "string", "declared_default": "", "repeatable": false, "help": "filter by tool name" },
+        { "name": "denied", "aliases": [], "type": "bool", "declared_default": false, "repeatable": false, "help": "only denied decisions" },
+        { "name": "limit", "aliases": [], "type": "int", "declared_default": 0, "repeatable": false, "help": "keep the most recent N entries (0 = all)" }
+      ],
+      "positionals": {
+        "entries": [],
+        "count_rule": "no NArg check (cmdAudit:303-372)",
+        "extra_positionals": "ignored",
+        "notes": "filters applied in order since/tool/denied (324-343), then limit keeps the LAST N (344-346), then newest-first sort (353)"
+      },
+      "parsing": {
+        "mechanism": "flag.FlagSet",
+        "flagset_name": "hooks audit",
+        "error_handling": "ContinueOnError",
+        "output": "stderr (SetOutput, hookscli.go:305)",
+        "usage_style": "default flag usage to stderr (no custom Usage)",
+        "positional_termination": "stops at first non-flag",
+        "dashdash": "supported by flag.Parse",
+        "reorder": "none",
+        "dash_equivalence": "single/double dash equivalent; repeated scalar flags last-wins"
+      },
+      "help": {
+        "forms": ["-h", "--help (via flag.ErrHelp)"],
+        "stream": "stderr",
+        "exit_code": 1,
+        "notes": "ErrHelp returned -> seek: exit 1"
+      },
+      "errors": {
+        "unknown_flag": { "stream": "stderr", "exit_code": 1, "detail": "flag error + usage stderr -> returned -> exit 1" },
+        "bad_duration": { "stream": "stderr", "exit_code": 1, "detail": "invalid value for -since -> flag parse error -> exit 1" },
+        "runtime_failure": { "stream": "stderr", "exit_code": 0, "detail": "audit log read error -> 'hooks: ...' stderr, returns nil -> exit 0 (314-318); empty log 'no audit entries' stdout 0 (319-322); filters matching nothing 'no matching audit entries' stdout 0 (347-350)" }
+      },
+      "cases": [
+        { "argv": ["hooks", "audit", "-h"], "preconditions": "none", "expect": "default usage stderr + 'seek: flag: help requested'", "exit_code": 1 },
+        { "argv": ["hooks", "audit"], "preconditions": "no audit log", "expect": "stdout 'no audit entries'", "exit_code": 0 },
+        { "argv": ["hooks", "audit", "--denied", "--limit", "5"], "preconditions": "audit log with denials", "expect": "stdout newest-first table of last 5 denied entries", "exit_code": 0 },
+        { "argv": ["hooks", "audit", "--since", "notaduration"], "preconditions": "none", "expect": "invalid value + usage stderr", "exit_code": 1 },
+        { "argv": ["hooks", "audit", "--tool", "nonexistent"], "preconditions": "audit log exists", "expect": "stdout 'no matching audit entries'", "exit_code": 0 }
+      ]
+    },
+    {
+      "command": "worktree list",
+      "aliases": ["ls"],
+      "owner": "M4",
+      "sources": [
+        "internal/worktreecli/worktreecli.go:Run:41-57 (list|ls:46-47)",
+        "internal/worktreecli/worktreecli.go:cmdList:81-115 (FlagSet:82, SetOutput:83)",
+        "cmd/seek/main.go:run:906-908, main:774-791"
+      ],
+      "flags": [],
+      "positionals": {
+        "entries": [],
+        "count_rule": "no NArg check (cmdList:81-115)",
+        "extra_positionals": "ignored",
+        "notes": "truly flagless: FlagSet created only for parse/error posture (82); no flag registrations between 82 and 84"
+      },
+      "parsing": {
+        "mechanism": "flag.FlagSet (no flags registered)",
+        "flagset_name": "worktree list",
+        "error_handling": "ContinueOnError",
+        "output": "stderr (SetOutput, worktreecli.go:83)",
+        "usage_style": "default flag usage to stderr (no custom Usage)",
+        "positional_termination": "stops at first non-flag",
+        "dashdash": "supported by flag.Parse",
+        "reorder": "none",
+        "dash_equivalence": "single/double dash equivalent"
+      },
+      "help": {
+        "forms": ["-h", "--help (via flag.ErrHelp)"],
+        "stream": "stderr",
+        "exit_code": 1,
+        "notes": "ErrHelp returned verbatim (84-86) -> seek: exit 1. Group-level 'worktree help' stdout/0 (Run:52-54)."
+      },
+      "errors": {
+        "unknown_flag": { "stream": "stderr", "exit_code": 1, "detail": "any -flag is undefined here -> flag error + usage stderr -> exit 1" },
+        "runtime_failure": { "stream": "stderr", "exit_code": 1, "detail": "getwd/NewManager/ListFromDisk errors wrapped 'worktree list: ...' (88-101) -> seek: exit 1; 10s context timeout (96)" }
+      },
+      "cases": [
+        { "argv": ["worktree", "list", "-h"], "preconditions": "none", "expect": "default usage stderr + 'seek: flag: help requested'", "exit_code": 1 },
+        { "argv": ["worktree", "list"], "preconditions": "git project, no seek-managed worktrees", "expect": "stdout 'no seek-managed worktrees in this project'", "exit_code": 0 },
+        { "argv": ["worktree", "list"], "preconditions": "managed worktrees exist", "expect": "stdout WT-ID/BRANCH/PATH table, newest-first by ID (108)", "exit_code": 0 },
+        { "argv": ["worktree", "list"], "preconditions": "outside a git repo", "expect": "'seek: worktree list: ...' stderr", "exit_code": 1 }
+      ]
+    },
+    {
+      "command": "worktree gc",
+      "aliases": [],
+      "owner": "M4",
+      "sources": [
+        "internal/worktreecli/worktreecli.go:Run:41-57 (gc:48-49)",
+        "internal/worktreecli/worktreecli.go:cmdGC:122-171 (FlagSet:123, SetOutput:124)",
+        "internal/worktree/worktree.go:DefaultOrphanAge:634 (168h = 7d)",
+        "cmd/seek/main.go:run:906-908, main:774-791"
+      ],
+      "flags": [
+        { "name": "older-than", "aliases": [], "type": "duration", "declared_default": "48h", "repeatable": false, "help": "prune refs older than this (e.g. 48h, 7d=168h, 0 = all)" },
+        { "name": "orphan-after", "aliases": [], "type": "duration", "declared_default": "168h", "repeatable": false, "help": "collect unmarked orphan worktrees older than this (0 = disable); declared default worktree.DefaultOrphanAge (7d)" }
+      ],
+      "positionals": {
+        "entries": [],
+        "count_rule": "no NArg check (cmdGC:122-171)",
+        "extra_positionals": "ignored",
+        "notes": "two passes: PruneDiscarded(older-than) then PruneOrphans(orphan-after); orphan-after<=0 skips the orphan pass entirely (154-156); orphan progress messages go to stderr (157-159)"
+      },
+      "parsing": {
+        "mechanism": "flag.FlagSet",
+        "flagset_name": "worktree gc",
+        "error_handling": "ContinueOnError",
+        "output": "stderr (SetOutput, worktreecli.go:124)",
+        "usage_style": "default flag usage to stderr (no custom Usage)",
+        "positional_termination": "stops at first non-flag",
+        "dashdash": "supported by flag.Parse",
+        "reorder": "none",
+        "dash_equivalence": "single/double dash equivalent; repeated scalar flags last-wins"
+      },
+      "help": {
+        "forms": ["-h", "--help (via flag.ErrHelp)"],
+        "stream": "stderr",
+        "exit_code": 1,
+        "notes": "ErrHelp returned verbatim (129-131) -> seek: exit 1"
+      },
+      "errors": {
+        "unknown_flag": { "stream": "stderr", "exit_code": 1, "detail": "flag error + usage stderr -> exit 1" },
+        "bad_duration": { "stream": "stderr", "exit_code": 1, "detail": "invalid duration value -> flag parse error -> exit 1" },
+        "runtime_failure": { "stream": "stderr", "exit_code": 1, "detail": "getwd/NewManager/PruneDiscarded errors 'worktree gc: ...' (133-146), orphan pass 'worktree gc: orphan pass: ...' (160-162) -> seek: exit 1; 30s context timeout (141)" }
+      },
+      "cases": [
+        { "argv": ["worktree", "gc", "-h"], "preconditions": "none", "expect": "default usage stderr + 'seek: flag: help requested'", "exit_code": 1 },
+        { "argv": ["worktree", "gc"], "preconditions": "git project, nothing to prune", "expect": "stdout 'no discarded refs to prune' then 'no orphan worktrees to collect'", "exit_code": 0 },
+        { "argv": ["worktree", "gc", "--orphan-after", "0"], "preconditions": "discarded refs exist", "expect": "prune pass runs, orphan pass skipped (154-156)", "exit_code": 0 },
+        { "argv": ["worktree", "gc", "--older-than", "0"], "preconditions": "discarded refs exist", "expect": "stdout 'pruned N discarded refs' (0 = all ages)", "exit_code": 0 },
+        { "argv": ["worktree", "gc", "--older-than", "xyz"], "preconditions": "none", "expect": "invalid duration + usage stderr", "exit_code": 1 }
+      ]
+    },
+    {
+      "command": "cron create",
+      "aliases": [],
+      "owner": "M4",
+      "sources": [
+        "internal/routinescli/routinescli.go:Run:71-95 (create:76-77)",
+        "internal/routinescli/routinescli.go:cmdCreate:164-231 (FlagSet:165, SetOutput:166)",
+        "internal/routinescli/routinescli.go:autoGenName:398-404",
+        "cmd/seek/main.go:run:915-917, main:774-791"
+      ],
+      "flags": [
+        { "name": "name", "aliases": [], "type": "string", "declared_default": "", "repeatable": false, "help": "job name (auto-generated if omitted)" },
+        { "name": "at", "aliases": [], "type": "string", "declared_default": "@daily", "repeatable": false, "help": "schedule expression (@every <dur> / @hourly / @daily / @weekly)" },
+        { "name": "cwd", "aliases": [], "type": "string", "declared_default": "", "repeatable": false, "help": "project root for the cron run (default: $HOME)" },
+        { "name": "max-runs", "aliases": [], "type": "int", "declared_default": 0, "repeatable": false, "help": "delete after N fires (0 = unlimited)" },
+        { "name": "no-yolo", "aliases": [], "type": "bool", "declared_default": false, "repeatable": false, "help": "run subprocess WITHOUT --yolo (default: yolo on)" },
+        { "name": "notify", "aliases": [], "type": "string", "declared_default": "always", "repeatable": false, "help": "always | on_failure | never" },
+        { "name": "force", "aliases": [], "type": "bool", "declared_default": false, "repeatable": false, "help": "overwrite existing job with same name" },
+        { "name": "autopilot", "aliases": [], "type": "bool", "declared_default": false, "repeatable": false, "help": "unattended autopilot job: fires `seek autopilot run <goal>` (parallel worktree fleet, no-remote-guarded) instead of `seek -p`" },
+        { "name": "goal", "aliases": [], "type": "bool", "declared_default": false, "repeatable": false, "help": "unattended goal job: fires `seek goal run <condition>` (single agent loops until a cheap model judges <condition> met; yolo-local + no-remote-guarded) instead of `seek -p`" }
+      ],
+      "positionals": {
+        "entries": [ { "name": "<prompt>", "required": true, "variadic": true } ],
+        "count_rule": "prompt = TrimSpace(join(fs.Args(), ' ')) (185); empty -> error (186-188); all positionals joined, none ignored",
+        "extra_positionals": "joined into the prompt",
+        "notes": "--autopilot and --goal are registered (174-175) but absent from printHelp text; mutually exclusive (179-181). Effective defaults: name '' -> autoGenName 'cron-<timestamp>-<rand>' (197-199, 398-404); cwd '' -> $HOME when UserHomeDir succeeds (204-209)."
+      },
+      "parsing": {
+        "mechanism": "flag.FlagSet",
+        "flagset_name": "cron create",
+        "error_handling": "ContinueOnError",
+        "output": "stderr (SetOutput, routinescli.go:166)",
+        "usage_style": "default flag usage to stderr (no custom Usage)",
+        "positional_termination": "stops at first non-flag; flags must precede the prompt words",
+        "dashdash": "supported by flag.Parse (comment 183-184: piped stdin only via -- separator)",
+        "reorder": "none",
+        "dash_equivalence": "single/double dash equivalent; repeated scalar flags last-wins"
+      },
+      "help": {
+        "forms": ["-h", "--help (via flag.ErrHelp)"],
+        "stream": "stderr",
+        "exit_code": 1,
+        "notes": "ErrHelp returned verbatim (176-178) -> seek: exit 1. Group-level 'cron help' stdout/0 (Run:90-92)."
+      },
+      "errors": {
+        "unknown_flag": { "stream": "stderr", "exit_code": 1, "detail": "flag error + usage stderr -> exit 1" },
+        "mutually_exclusive": { "stream": "stderr", "exit_code": 1, "detail": "'cron create: --autopilot and --goal are mutually exclusive' (179-181) -> seek: exit 1" },
+        "missing_prompt": { "stream": "stderr", "exit_code": 1, "detail": "'cron create: <prompt> required (e.g. `seek cron create --at @daily ''summarise PRs''`)' (186-188) -> exit 1" },
+        "bad_schedule_notify_name": { "stream": "stderr", "exit_code": 1, "detail": "ParseSchedule/ValidateNotify/ValidateName errors wrapped 'cron create: %w' (190-202) -> exit 1" },
+        "runtime_failure": { "stream": "stderr", "exit_code": 1, "detail": "OpenStore (211-214) / store.Create (226-228, incl. duplicate name without --force) errors returned -> seek: exit 1" }
+      },
+      "cases": [
+        { "argv": ["cron", "create", "-h"], "preconditions": "none", "expect": "default usage stderr + 'seek: flag: help requested'", "exit_code": 1 },
+        { "argv": ["cron", "create"], "preconditions": "none", "expect": "'seek: cron create: <prompt> required ...' stderr", "exit_code": 1 },
+        { "argv": ["cron", "create", "--at", "@daily", "summarise PRs"], "preconditions": "store writable", "expect": "stdout 'registered cron job \"cron-...\" (next run: @daily)'", "exit_code": 0 },
+        { "argv": ["cron", "create", "--autopilot", "--goal", "x"], "preconditions": "none", "expect": "'seek: cron create: --autopilot and --goal are mutually exclusive' stderr", "exit_code": 1 },
+        { "argv": ["cron", "create", "--at", "bogus", "x"], "preconditions": "none", "expect": "'seek: cron create: ...' schedule parse error stderr", "exit_code": 1 },
+        { "argv": ["cron", "create", "--notify", "bogus", "x"], "preconditions": "none", "expect": "'seek: cron create: ...' notify validation error stderr", "exit_code": 1 }
+      ]
+    },
+    {
+      "command": "cron list",
+      "aliases": ["ls"],
+      "owner": "M4",
+      "sources": [
+        "internal/routinescli/routinescli.go:Run:71-95 (list|ls:78-79)",
+        "internal/routinescli/routinescli.go:cmdList:236-282 (FlagSet:237, SetOutput:238)",
+        "cmd/seek/main.go:run:915-917, main:774-791"
+      ],
+      "flags": [
+        { "name": "json", "aliases": [], "type": "bool", "declared_default": false, "repeatable": false, "help": "emit jobs as JSON array" }
+      ],
+      "positionals": {
+        "entries": [],
+        "count_rule": "no NArg check (cmdList:236-282)",
+        "extra_positionals": "ignored",
+        "notes": "JSON mode encodes even an empty list (253-258, before the empty check); text mode empty -> hint line (260-262)"
+      },
+      "parsing": {
+        "mechanism": "flag.FlagSet",
+        "flagset_name": "cron list",
+        "error_handling": "ContinueOnError",
+        "output": "stderr (SetOutput, routinescli.go:238)",
+        "usage_style": "default flag usage to stderr (no custom Usage)",
+        "positional_termination": "stops at first non-flag",
+        "dashdash": "supported by flag.Parse",
+        "reorder": "none",
+        "dash_equivalence": "single/double dash equivalent; repeated scalar flags last-wins"
+      },
+      "help": {
+        "forms": ["-h", "--help (via flag.ErrHelp)"],
+        "stream": "stderr",
+        "exit_code": 1,
+        "notes": "ErrHelp returned verbatim (240-242) -> seek: exit 1"
+      },
+      "errors": {
+        "unknown_flag": { "stream": "stderr", "exit_code": 1, "detail": "flag error + usage stderr -> exit 1" },
+        "runtime_failure": { "stream": "stderr", "exit_code": 1, "detail": "OpenStore (244-247) / store.List (248-251) errors returned -> seek: exit 1" }
+      },
+      "cases": [
+        { "argv": ["cron", "list", "-h"], "preconditions": "none", "expect": "default usage stderr + 'seek: flag: help requested'", "exit_code": 1 },
+        { "argv": ["cron", "list"], "preconditions": "no jobs registered", "expect": "stdout 'no cron jobs registered — try `seek cron create --at @daily ''check status''`'", "exit_code": 0 },
+        { "argv": ["cron", "list", "--json"], "preconditions": "no jobs registered", "expect": "stdout JSON '[]' (empty check skipped in JSON mode)", "exit_code": 0 },
+        { "argv": ["cron", "list"], "preconditions": "jobs registered", "expect": "stdout NAME/SCHEDULE/NEXT_RUN/LAST/RUNS/PROMPT table", "exit_code": 0 }
+      ]
+    },
+    {
+      "command": "cron delete",
+      "aliases": ["rm"],
+      "owner": "M4",
+      "sources": [
+        "internal/routinescli/routinescli.go:Run:71-95 (delete|rm:80-81)",
+        "internal/routinescli/routinescli.go:cmdDelete:287-307 (FlagSet:288, SetOutput:289)",
+        "cmd/seek/main.go:run:915-917, main:774-791"
+      ],
+      "flags": [],
+      "positionals": {
+        "entries": [ { "name": "<name>", "required": true, "variadic": false } ],
+        "count_rule": "fs.NArg() != 1 -> 'cron delete: exactly one <name> required' (293-295)",
+        "extra_positionals": "error (NArg != 1)",
+        "notes": "truly flagless: FlagSet created only for parse posture (288); no registrations before Parse (290)"
+      },
+      "parsing": {
+        "mechanism": "flag.FlagSet (no flags registered)",
+        "flagset_name": "cron delete",
+        "error_handling": "ContinueOnError",
+        "output": "stderr (SetOutput, routinescli.go:289)",
+        "usage_style": "default flag usage to stderr (no custom Usage)",
+        "positional_termination": "stops at first non-flag; a trailing -flag after <name> becomes a positional -> NArg error",
+        "dashdash": "supported by flag.Parse",
+        "reorder": "none",
+        "dash_equivalence": "single/double dash equivalent"
+      },
+      "help": {
+        "forms": ["-h", "--help (via flag.ErrHelp)"],
+        "stream": "stderr",
+        "exit_code": 1,
+        "notes": "ErrHelp returned verbatim (290-292) -> seek: exit 1"
+      },
+      "errors": {
+        "unknown_flag": { "stream": "stderr", "exit_code": 1, "detail": "any -flag undefined -> flag error + usage stderr -> exit 1" },
+        "positional_error": { "stream": "stderr", "exit_code": 1, "detail": "'cron delete: exactly one <name> required' (293-295), no usage print -> seek: exit 1" },
+        "runtime_failure": { "stream": "stderr", "exit_code": 1, "detail": "OpenStore (298-301) / store.Delete (302-304, incl. ErrJobNotFound) errors returned -> seek: exit 1" }
+      },
+      "cases": [
+        { "argv": ["cron", "delete", "-h"], "preconditions": "none", "expect": "default usage stderr + 'seek: flag: help requested'", "exit_code": 1 },
+        { "argv": ["cron", "delete"], "preconditions": "none", "expect": "'seek: cron delete: exactly one <name> required' stderr", "exit_code": 1 },
+        { "argv": ["cron", "delete", "a", "b"], "preconditions": "none", "expect": "'seek: cron delete: exactly one <name> required' stderr", "exit_code": 1 },
+        { "argv": ["cron", "delete", "my-job"], "preconditions": "job exists", "expect": "stdout 'deleted cron job \"my-job\"'", "exit_code": 0 },
+        { "argv": ["cron", "delete", "missing"], "preconditions": "job absent", "expect": "'seek: ...' not-found error stderr", "exit_code": 1 }
+      ]
+    },
+    {
+      "command": "cron run",
+      "aliases": [],
+      "owner": "M4",
+      "sources": [
+        "internal/routinescli/routinescli.go:Run:71-95 (run:82-83)",
+        "internal/routinescli/routinescli.go:cmdRun:313-353 (FlagSet:314, SetOutput:315)",
+        "internal/routines/tick.go:DefaultRunTimeout:30 (30m)",
+        "cmd/seek/main.go:run:915-917, main:774-791"
+      ],
+      "flags": [
+        { "name": "timeout", "aliases": [], "type": "duration", "declared_default": "30m", "repeatable": false, "help": "wall-clock cap for this run; declared default routines.DefaultRunTimeout (tick.go:30)" }
+      ],
+      "positionals": {
+        "entries": [ { "name": "<name>", "required": true, "variadic": false } ],
+        "count_rule": "fs.NArg() != 1 -> 'cron run: exactly one <name> required' (320-322)",
+        "extra_positionals": "error (NArg != 1)",
+        "notes": "RunOne returns nil for completed/failed/killed runs; outcome read back from store (336-351); store.Get error after a run means max_runs=1 self-delete (338-343)"
+      },
+      "parsing": {
+        "mechanism": "flag.FlagSet",
+        "flagset_name": "cron run",
+        "error_handling": "ContinueOnError",
+        "output": "stderr (SetOutput, routinescli.go:315)",
+        "usage_style": "default flag usage to stderr (no custom Usage)",
+        "positional_termination": "stops at first non-flag; flags must precede <name>",
+        "dashdash": "supported by flag.Parse",
+        "reorder": "none",
+        "dash_equivalence": "single/double dash equivalent; repeated scalar flags last-wins"
+      },
+      "help": {
+        "forms": ["-h", "--help (via flag.ErrHelp)"],
+        "stream": "stderr",
+        "exit_code": 1,
+        "notes": "ErrHelp returned verbatim (317-319) -> seek: exit 1"
+      },
+      "errors": {
+        "unknown_flag": { "stream": "stderr", "exit_code": 1, "detail": "flag error + usage stderr -> exit 1" },
+        "positional_error": { "stream": "stderr", "exit_code": 1, "detail": "'cron run: exactly one <name> required' (320-322) -> seek: exit 1" },
+        "runtime_failure": { "stream": "stderr", "exit_code": 1, "detail": "OpenStore (325-328) / RunOne dispatch error (333-335) returned -> seek: exit 1; a failed job run is NOT a CLI error — status/error printed to stdout, exit 0 (345-351)" }
+      },
+      "cases": [
+        { "argv": ["cron", "run", "-h"], "preconditions": "none", "expect": "default usage stderr + 'seek: flag: help requested'", "exit_code": 1 },
+        { "argv": ["cron", "run"], "preconditions": "none", "expect": "'seek: cron run: exactly one <name> required' stderr", "exit_code": 1 },
+        { "argv": ["cron", "run", "my-job"], "preconditions": "job exists and succeeds", "expect": "stdout 'running cron job \"my-job\"...' then '  status: completed'", "exit_code": 0 },
+        { "argv": ["cron", "run", "my-job"], "preconditions": "job exists, run fails", "expect": "stdout status/error/run-id lines (345-351)", "exit_code": 0 },
+        { "argv": ["cron", "run", "once-job"], "preconditions": "max_runs=1 job", "expect": "stdout 'cron job \"once-job\" ran and self-deleted (max_runs=1 was met)'", "exit_code": 0 }
+      ]
+    },
+    {
+      "command": "cron tick",
+      "aliases": [],
+      "owner": "M4",
+      "sources": [
+        "internal/routinescli/routinescli.go:Run:71-95 (tick:84-85)",
+        "internal/routinescli/routinescli.go:cmdTick:359-396 (FlagSet:360, SetOutput:361)",
+        "cmd/seek/main.go:run:915-917, main:774-791"
+      ],
+      "flags": [
+        { "name": "verbose", "aliases": [], "type": "bool", "declared_default": false, "repeatable": false, "help": "print idle / skipped messages too" }
+      ],
+      "positionals": {
+        "entries": [],
+        "count_rule": "no NArg check (cmdTick:359-396)",
+        "extra_positionals": "ignored",
+        "notes": "OS-scheduler entry point; quiet on idle/skipped unless --verbose (378-389); top-level -no-cron-tick (M4) disables the in-process auto-tick, not this verb"
+      },
+      "parsing": {
+        "mechanism": "flag.FlagSet",
+        "flagset_name": "cron tick",
+        "error_handling": "ContinueOnError",
+        "output": "stderr (SetOutput, routinescli.go:361)",
+        "usage_style": "default flag usage to stderr (no custom Usage)",
+        "positional_termination": "stops at first non-flag",
+        "dashdash": "supported by flag.Parse",
+        "reorder": "none",
+        "dash_equivalence": "single/double dash equivalent; repeated scalar flags last-wins"
+      },
+      "help": {
+        "forms": ["-h", "--help (via flag.ErrHelp)"],
+        "stream": "stderr",
+        "exit_code": 1,
+        "notes": "ErrHelp returned verbatim (363-365) -> seek: exit 1"
+      },
+      "errors": {
+        "unknown_flag": { "stream": "stderr", "exit_code": 1, "detail": "flag error + usage stderr -> exit 1" },
+        "runtime_failure": { "stream": "stderr", "exit_code": 1, "detail": "OpenStore (367-370) / routines.Tick (374-377) errors returned -> seek: exit 1; lock contention is Skipped, not an error (378-383)" }
+      },
+      "cases": [
+        { "argv": ["cron", "tick", "-h"], "preconditions": "none", "expect": "default usage stderr + 'seek: flag: help requested'", "exit_code": 1 },
+        { "argv": ["cron", "tick"], "preconditions": "no due jobs", "expect": "no output (quiet idle)", "exit_code": 0 },
+        { "argv": ["cron", "tick", "--verbose"], "preconditions": "no due jobs", "expect": "stdout 'tick: N job(s) considered, none due'", "exit_code": 0 },
+        { "argv": ["cron", "tick", "--verbose"], "preconditions": "tick.lock held elsewhere", "expect": "stdout 'tick skipped (tick.lock held by another process)'", "exit_code": 0 },
+        { "argv": ["cron", "tick"], "preconditions": "2 due jobs", "expect": "stdout 'ran 2 cron jobs'", "exit_code": 0 }
+      ]
+    },
+    {
+      "command": "cron config check",
+      "aliases": [],
+      "owner": "M4",
+      "sources": [
+        "internal/routinescli/routinescli.go:Run:71-95 (config:86-87)",
+        "internal/routinescli/routinescli.go:cmdConfig:423-434 (hand-written sub-dispatch, default sub='check')",
+        "internal/routinescli/routinescli.go:cmdConfigCheck:441-515 (FlagSet:442, SetOutput:443)",
+        "cmd/seek/main.go:run:915-917, main:774-791"
+      ],
+      "flags": [
+        { "name": "probe", "aliases": [], "type": "bool", "declared_default": false, "repeatable": false, "help": "send a real test notification to each webhook" }
+      ],
+      "positionals": {
+        "entries": [],
+        "count_rule": "no NArg check in cmdConfigCheck (441-515); cmdConfig consumes args[0] as sub only when non-dash (425-427)",
+        "extra_positionals": "ignored by cmdConfigCheck; a second non-dash token after 'check' is ignored, not an error",
+        "notes": "'cron config' with no sub defaults to check (424); 'cron config -h' leaves sub='check' and passes ['-h'] to cmdConfigCheck -> ErrHelp exit 1; 'cron config help' -> unknown-subcommand error exit 1 (432)"
+      },
+      "parsing": {
+        "mechanism": "hand-written sub-dispatch (cmdConfig) + flag.FlagSet (cmdConfigCheck)",
+        "flagset_name": "cron config check",
+        "error_handling": "ContinueOnError",
+        "output": "stderr (SetOutput, routinescli.go:443)",
+        "usage_style": "default flag usage to stderr (no custom Usage)",
+        "positional_termination": "stops at first non-flag",
+        "dashdash": "supported by flag.Parse",
+        "reorder": "none",
+        "dash_equivalence": "single/double dash equivalent; repeated scalar flags last-wins"
+      },
+      "help": {
+        "forms": ["-h", "--help (via flag.ErrHelp, also under bare 'cron config')"],
+        "stream": "stderr",
+        "exit_code": 1,
+        "notes": "ErrHelp returned verbatim (445-447) -> seek: exit 1. No 'help' sub verb: cmdConfig default branch errors (431-432)."
+      },
+      "errors": {
+        "unknown_subcommand": { "stream": "stderr", "exit_code": 1, "detail": "'unknown `cron config` subcommand %q (try `check`)' (432) -> seek: exit 1" },
+        "unknown_flag": { "stream": "stderr", "exit_code": 1, "detail": "flag error + usage stderr -> exit 1" },
+        "runtime_failure": { "stream": "stderr", "exit_code": 1, "detail": "config.Load error returned (449-452) -> seek: exit 1; per-webhook validation failures print ✗ lines to STDOUT then '%d of %d webhook(s) failed validation' -> exit 1 (476-511)" }
+      },
+      "cases": [
+        { "argv": ["cron", "config", "check", "-h"], "preconditions": "none", "expect": "default usage stderr + 'seek: flag: help requested'", "exit_code": 1 },
+        { "argv": ["cron", "config", "-h"], "preconditions": "none", "expect": "sub defaults to check, -h -> ErrHelp usage stderr", "exit_code": 1 },
+        { "argv": ["cron", "config"], "preconditions": "no push_webhooks configured", "expect": "stdout 'no push webhooks configured (push_webhooks in ~/.seek/config.json)'", "exit_code": 0 },
+        { "argv": ["cron", "config", "check"], "preconditions": "valid webhooks configured", "expect": "stdout ✓ lines + 'N webhook(s) OK'", "exit_code": 0 },
+        { "argv": ["cron", "config", "check"], "preconditions": "one invalid webhook URL", "expect": "stdout ✗ line, then 'seek: 1 of N webhook(s) failed validation' stderr", "exit_code": 1 },
+        { "argv": ["cron", "config", "bogus"], "preconditions": "none", "expect": "'seek: unknown `cron config` subcommand \"bogus\" (try `check`)' stderr", "exit_code": 1 }
+      ]
+    },
+    {
+      "command": "keys list",
+      "aliases": [],
+      "owner": "M5",
+      "sources": [
+        "internal/keyscli/keyscli.go:Run:51-71 (list:56-57), ErrUsage:45",
+        "internal/keyscli/keyscli.go:runList:73-107 (FlagSet:74, SetOutput:75)",
+        "cmd/seek/main.go:run:924-932 (keyscli.ErrUsage -> os.Exit(2)), main:774-791"
+      ],
+      "flags": [
+        { "name": "json", "aliases": [], "type": "bool", "declared_default": false, "repeatable": false, "help": "emit JSONL on stdout" }
+      ],
+      "positionals": {
+        "entries": [],
+        "count_rule": "no NArg check (runList:73-107)",
+        "extra_positionals": "ignored",
+        "notes": "JSONL: one object per binding (90-98); text: table (101-105)"
+      },
+      "parsing": {
+        "mechanism": "flag.FlagSet",
+        "flagset_name": "keys list",
+        "error_handling": "ContinueOnError",
+        "output": "stderr (SetOutput errOut, keyscli.go:75)",
+        "usage_style": "default flag usage to stderr (no custom Usage)",
+        "positional_termination": "stops at first non-flag",
+        "dashdash": "supported by flag.Parse",
+        "reorder": "none",
+        "dash_equivalence": "single/double dash equivalent; repeated scalar flags last-wins"
+      },
+      "help": {
+        "forms": ["-h", "--help (flag.ErrHelp, but routed to ErrUsage)"],
+        "stream": "stderr",
+        "exit_code": 2,
+        "notes": "Parse error incl. ErrHelp -> return ErrUsage (77-79); flag already printed default usage to stderr; main exits 2 without re-printing (924-928). Leaf -h is NOT stdout/0 here — group-level 'keys help' is the stdout/0 form (Run:63-65)."
+      },
+      "errors": {
+        "unknown_flag": { "stream": "stderr", "exit_code": 2, "detail": "flag error + default usage stderr -> ErrUsage -> main os.Exit(2) (77-79, main.go:926-927)" },
+        "runtime_failure": { "stream": "stderr", "exit_code": 1, "detail": "non-ErrUsage errors (e.g. keymap load) returned -> main 'seek: ...' exit 1" }
+      },
+      "cases": [
+        { "argv": ["keys", "list", "-h"], "preconditions": "none", "expect": "default usage stderr, exit 2 (ErrUsage posture)", "exit_code": 2 },
+        { "argv": ["keys", "list"], "preconditions": "default or custom keybindings loadable", "expect": "stdout bindings table", "exit_code": 0 },
+        { "argv": ["keys", "list", "--json"], "preconditions": "bindings loadable", "expect": "stdout JSONL, one object per binding", "exit_code": 0 },
+        { "argv": ["keys", "list", "--bogus"], "preconditions": "none", "expect": "flag provided but not defined + usage stderr", "exit_code": 2 }
+      ]
+    },
+    {
+      "command": "keys check",
+      "aliases": [],
+      "owner": "M5",
+      "sources": [
+        "internal/keyscli/keyscli.go:Run:51-71 (check:58-59), ErrUsage:45",
+        "internal/keyscli/keyscli.go:runCheck:109-130 (hand-written arg handling, no FlagSet)",
+        "cmd/seek/main.go:run:924-932, main:774-791"
+      ],
+      "flags": [],
+      "positionals": {
+        "entries": [ { "name": "[path]", "required": false, "variadic": false } ],
+        "count_rule": "args[0] consumed as path only when non-dash (110-115); otherwise default paths.UserKeybindings() (~/.seek/keybindings.toml)",
+        "extra_positionals": "ignored — args beyond the first are never read (109-130)",
+        "notes": "hand-written parser: dash-prefixed tokens are NOT flags here; '-h' falls through to the default path and runs a real check (no help path). Truly flagless — no flag.NewFlagSet in runCheck."
+      },
+      "parsing": {
+        "mechanism": "hand-written (first-non-dash positional, everything else ignored)",
+        "flagset_name": null,
+        "error_handling": "n/a — no flag parsing; validation errors via keymap.Check",
+        "output": "validation errors to stderr; success line to stdout",
+        "usage_style": "none (no usage text on errors; group helpText only via 'keys help')",
+        "positional_termination": "n/a — only args[0] inspected",
+        "dashdash": "not special-cased; '--' is dash-prefixed -> ignored, default path used",
+        "reorder": "none",
+        "dash_equivalence": "n/a — no flags accepted"
+      },
+      "help": {
+        "forms": [],
+        "stream": "n/a",
+        "exit_code": null,
+        "notes": "No help form at leaf level: 'keys check -h' ignores -h and checks the default file (109-115). Help only via group 'keys help' / 'keys -h' / 'keys --help' (Run:63-65, stdout/0)."
+      },
+      "errors": {
+        "validation_error": { "stream": "stderr", "exit_code": 2, "detail": "keymap.Check errors printed one per line to stderr, then ErrUsage (126-129) -> main os.Exit(2)" },
+        "runtime_failure": { "stream": "stderr", "exit_code": 2, "detail": "unreadable/invalid file surfaces through keymap.Check -> same stderr + ErrUsage exit 2 posture" }
+      },
+      "cases": [
+        { "argv": ["keys", "check"], "preconditions": "valid default keybindings (or absent file = defaults)", "expect": "stdout 'ok: <path>'", "exit_code": 0 },
+        { "argv": ["keys", "check", "custom.toml"], "preconditions": "valid custom file", "expect": "stdout 'ok: custom.toml'", "exit_code": 0 },
+        { "argv": ["keys", "check", "bad.toml"], "preconditions": "file with invalid bindings", "expect": "stderr per-error lines, exit 2", "exit_code": 2 },
+        { "argv": ["keys", "check", "-h"], "preconditions": "default file valid", "expect": "-h ignored, runs check on default path, stdout 'ok: ...'", "exit_code": 0 }
+      ]
+    },
+    {
+      "command": "keys actions",
+      "aliases": [],
+      "owner": "M5",
+      "sources": [
+        "internal/keyscli/keyscli.go:Run:51-71 (actions:60-61), ErrUsage:45",
+        "internal/keyscli/keyscli.go:runActions:132-160 (FlagSet:133)",
+        "cmd/seek/main.go:run:924-932, main:774-791"
+      ],
+      "flags": [
+        { "name": "json", "aliases": [], "type": "bool", "declared_default": false, "repeatable": false, "help": "emit JSON array on stdout" }
+      ],
+      "positionals": {
+        "entries": [],
+        "count_rule": "no NArg check (runActions:132-160)",
+        "extra_positionals": "ignored",
+        "notes": "text mode: action table + example footer; JSON mode: single JSON array"
+      },
+      "parsing": {
+        "mechanism": "flag.FlagSet",
+        "flagset_name": "keys actions",
+        "error_handling": "ContinueOnError",
+        "output": "stderr (SetOutput errOut, keyscli.go:134)",
+        "usage_style": "default flag usage to stderr (no custom Usage)",
+        "positional_termination": "stops at first non-flag",
+        "dashdash": "supported by flag.Parse",
+        "reorder": "none",
+        "dash_equivalence": "single/double dash equivalent; repeated scalar flags last-wins"
+      },
+      "help": {
+        "forms": ["-h", "--help (flag.ErrHelp, but routed to ErrUsage)"],
+        "stream": "stderr",
+        "exit_code": 2,
+        "notes": "Parse error incl. ErrHelp -> ErrUsage -> main os.Exit(2); same posture as keys list. Group 'keys help' is stdout/0."
+      },
+      "errors": {
+        "unknown_flag": { "stream": "stderr", "exit_code": 2, "detail": "flag error + default usage stderr -> ErrUsage -> exit 2" },
+        "runtime_failure": { "stream": "stderr", "exit_code": 1, "detail": "non-ErrUsage errors returned -> main 'seek: ...' exit 1" }
+      },
+      "cases": [
+        { "argv": ["keys", "actions", "-h"], "preconditions": "none", "expect": "default usage stderr, exit 2", "exit_code": 2 },
+        { "argv": ["keys", "actions"], "preconditions": "none", "expect": "stdout action table + example footer", "exit_code": 0 },
+        { "argv": ["keys", "actions", "--json"], "preconditions": "none", "expect": "stdout JSON array of actions", "exit_code": 0 },
+        { "argv": ["keys", "actions", "--bogus"], "preconditions": "none", "expect": "flag error + usage stderr", "exit_code": 2 }
+      ]
+    },
+    {
+      "command": "serve",
+      "aliases": [],
+      "owner": "M5",
+      "sources": [
+        "cmd/seek/main.go:run:941-946 (servecli.Run err -> os.Exit(controlplane.ExitCode(err)), no re-print)",
+        "internal/servecli/servecli.go:Run:103-169 (help scan:111-119, FlagSet:123, SetOutput:124, fs.Usage:127)",
+        "internal/servecli/servecli.go:frontendList:90-97 (flag.Value, Set appends), frontends registry:55-86 (fake/web/voice)",
+        "internal/servecli/servecli.go:effectiveServe:179-189, buildFrontends:196-228, servePlane:244-284, badConfig:286-294, printHelp:297-343",
+        "internal/controlplane/serve.go:ErrDrainIncomplete/ErrFrontendsDown/ErrNoFrontends:103-105, ExitCode:294-305"
+      ],
+      "flags": [
+        { "name": "frontend", "aliases": [], "type": "string-list (flag.Value frontendList)", "declared_default": [], "repeatable": true, "help": "frontend to launch; repeat the flag for multiple (v1: fake, web, voice)" },
+        { "name": "listen", "aliases": [], "type": "string", "declared_default": "", "repeatable": false, "help": "web frontend listen address; overrides serve.web_addr (loopback + tailnet CGNAT only)" }
+      ],
+      "positionals": {
+        "entries": [],
+        "count_rule": "fs.NArg() > 0 -> badConfig 'unexpected argument %q (try --frontend=<name>)' (140-142)",
+        "extra_positionals": "error, exit 2",
+        "notes": "frontendList zero value is an empty list (90-97): no frontends selected -> buildFrontends error 'no frontends selected — pass --frontend=<name> (v1: fake, web, voice)' (197-199) -> exit 2. Effective listen precedence: --listen > serve.web_addr config > web default 127.0.0.1:8790 (effectiveServe:179-189, printHelp:320); bad --listen values fail exit-2 with no fallback (176-178)."
+      },
+      "parsing": {
+        "mechanism": "hand-written help pre-scan + flag.FlagSet",
+        "flagset_name": "serve",
+        "error_handling": "ContinueOnError",
+        "output": "stderr (SetOutput, servecli.go:124)",
+        "usage_style": "custom fs.Usage = printHelp(stderr) (127); help pre-scan prints printHelp(stdout) (116)",
+        "positional_termination": "stops at first non-flag; positionals are errors anyway (NArg check)",
+        "dashdash": "supported by flag.Parse; also terminates the help pre-scan (112-114)",
+        "reorder": "none",
+        "dash_equivalence": "single/double dash equivalent; --frontend repeats append (last-wins does NOT apply); --listen repeats last-wins",
+        "notes": "flag.Parse ErrHelp branch (129-136) returns nil/0 but is unreachable today: the pre-scan already catches every -h/--help before '--'. badConfig wraps controlplane.ErrNoFrontends (294) so ExitCode maps all config errors to 2."
+      },
+      "help": {
+        "forms": ["help (first position only)", "-h", "--help (any position before --)"],
+        "stream": "stdout",
+        "exit_code": 0,
+        "help_verb_first_position_only": true,
+        "help_flags_any_position_before_dashdash": true,
+        "help_scan_stops_at_dashdash": true,
+        "help_scan_cases": [
+          { "argv": ["help"], "requested": true },
+          { "argv": ["--frontend=web", "help"], "requested": false },
+          { "argv": ["-h"], "requested": true },
+          { "argv": ["--frontend=web", "-h"], "requested": true },
+          { "argv": ["--frontend", "web", "--help"], "requested": true },
+          { "argv": ["--", "-h"], "requested": false },
+          { "argv": ["--", "help"], "requested": false },
+          { "argv": ["-h", "--"], "requested": true }
+        ],
+        "notes": "scan at servecli.go:111-119 over args after 'serve'; 'help' matches only i==0, -h/--help match any i before the first '--'; break at '--' does not revoke an earlier match. Requested help -> printHelp(stdout), return nil -> exit 0. argv here excludes binary AND 'serve'."
+      },
+      "errors": {
+        "unknown_flag": { "stream": "stderr", "exit_code": 2, "detail": "flag prints error + printHelp(stderr) via fs.Usage, then badConfig(nil, err) wraps ErrNoFrontends (137-138, 294) -> ExitCode 2" },
+        "positional_error": { "stream": "stderr", "exit_code": 2, "detail": "'unexpected argument %q (try --frontend=<name>)' via badConfig(stderr, ...) (140-142)" },
+        "config_error": { "stream": "stderr", "exit_code": 2, "detail": "config.Load failure 'read config: %w' (144-149); no frontends / unknown frontend / voice-without-web (154-157, 197-222) — all badConfig -> 2" },
+        "runtime_failure": { "stream": "stderr", "exit_code": "0|1|2", "detail": "servePlane error printed once as 'serve: %v' stderr (164-166), main maps via controlplane.ExitCode without re-printing: nil->0 (clean drain, 'serve: plane down: drained cleanly' stderr 281), ErrDrainIncomplete->1, ErrFrontendsDown/ErrNoFrontends->2, other->1 (serve.go:294-305); banner to stderr (274)" }
+      },
+      "cases": [
+        { "argv": ["serve", "help"], "preconditions": "none", "expect": "printHelp stdout", "exit_code": 0 },
+        { "argv": ["serve", "--frontend=web", "-h"], "preconditions": "none", "expect": "printHelp stdout (pre-scan hits -h before parse)", "exit_code": 0 },
+        { "argv": ["serve", "--", "-h"], "preconditions": "none", "expect": "scan stops at --; -h becomes positional -> 'unexpected argument \"-h\"' stderr", "exit_code": 2 },
+        { "argv": ["serve"], "preconditions": "none", "expect": "'no frontends selected — pass --frontend=<name> (v1: fake, web, voice)' stderr", "exit_code": 2 },
+        { "argv": ["serve", "--bogus"], "preconditions": "none", "expect": "flag error + printHelp stderr", "exit_code": 2 },
+        { "argv": ["serve", "--frontend", "nope"], "preconditions": "none", "expect": "'unknown frontend \"nope\" (registered: ...)' stderr", "exit_code": 2 },
+        { "argv": ["serve", "--frontend=voice"], "preconditions": "none", "expect": "'--frontend=voice needs --frontend=web in the same serve ...' stderr", "exit_code": 2 },
+        { "argv": ["serve", "--frontend=fake"], "preconditions": "config loadable", "expect": "plane runs; SIGINT/SIGTERM -> clean drain 'serve: plane down: drained cleanly' stderr", "exit_code": 0 },
+        { "argv": ["serve", "extra"], "preconditions": "none", "expect": "'unexpected argument \"extra\" (try --frontend=<name>)' stderr", "exit_code": 2 }
+      ]
+    },
+    {
+      "command": "acp",
+      "aliases": [],
+      "owner": "M5",
+      "sources": [
+        "cmd/seek/main.go:run:1065-1084 (acpLane marker + provider/model env pins)",
+        "cmd/seek/main.go:run:1219-1223 (acpYolo via SEEK_ACP_YOLO), dispatch:2286-2288",
+        "cmd/seek/main.go:runACP:3603-3634 (stdio JSON-RPC, SEEK_ACP_LOG trace)",
+        "internal/acp/headless.go:28,33-43 (YoloFromEnv accepts 1/true/yes/on)",
+        "cmd/seek/main.go:helpRequested:801-811, help branch:999-1002, flag.Parse:1009, buildProvider:3780-3818, main:774-791"
+      ],
+      "flags": [],
+      "positionals": {
+        "entries": [],
+        "count_rule": "no lane-level argument parsing: runACP receives no argv (2286-2288, 3603); os.Args beyond 'acp' never read",
+        "extra_positionals": "ignored (including stray flags after the verb)",
+        "notes": "lane marker os.Args[1]=='acp' (1065). Provider/model pins: flag > SEEK_ACP_PROVIDER/SEEK_ACP_MODEL env > buildProvider auto-detect (1067-1083; source comment calls the flag branch belt-and-braces). Yolo only via SEEK_ACP_YOLO env (1219; headless.go:33-43 accepts 1/true/yes/on) — a trailing --yolo is never parsed. SEEK_ACP_LOG=<path> opts into a raw JSON-RPC trace file (3608-3618)."
+      },
+      "parsing": {
+        "mechanism": "positional lane after top-level flag.Parse (no lane FlagSet)",
+        "flagset_name": null,
+        "error_handling": "n/a at lane level; runtime errors returned to main",
+        "output": "stdout is the JSON-RPC protocol channel; ALL logging to stderr (3604-3606)",
+        "usage_style": "none at lane level; top-level printUsage only via the help pre-scan",
+        "positional_termination": "top-level flag.Parse (1009) stops at the 'acp' verb — trailing top-level flags are unreachable (comment 3626-3628: a passthrough --base-url can't reach this lane)",
+        "dashdash": "top-level '--' before the verb ends flag parsing; after the verb it is just an ignored token",
+        "reorder": "none",
+        "dash_equivalence": "top-level flags before the verb follow Go flag rules; nothing after the verb is parsed"
+      },
+      "help": {
+        "forms": ["-h", "--help (TOP-LEVEL pre-scan only, any position before --)"],
+        "stream": "stdout",
+        "exit_code": 0,
+        "notes": "'seek acp -h' hits helpRequested (801-811) before flag.Parse/lane dispatch -> printUsage(os.Stdout) exit 0 (999-1002). No lane-level help: 'seek acp help' ignores 'help' and starts the ACP server (after provider init)."
+      },
+      "errors": {
+        "provider_init_error": { "stream": "stderr", "exit_code": 1, "detail": "no API key anywhere + non-TTY stdin -> buildProvider 'no DeepSeek API key — set DEEPSEEK_API_KEY or run seek once to use the setup wizard' (3815-3818) returned at 1117-1119 before lane dispatch -> seek: exit 1" },
+        "runtime_failure": { "stream": "stderr", "exit_code": 1, "detail": "acp.Serve error returned via runACP -> main 'seek: ...' exit 1; clean stdin EOF/shutdown -> exit 0" }
+      },
+      "cases": [
+        { "argv": ["acp", "-h"], "preconditions": "none", "expect": "top-level printUsage stdout (pre-scan wins over lane)", "exit_code": 0 },
+        { "argv": ["acp"], "preconditions": "API key configured (provider init succeeds)", "expect": "ACP JSON-RPC server on stdio; protocol stdout, logs stderr", "exit_code": 0 },
+        { "argv": ["acp"], "preconditions": "no API key anywhere, non-TTY stdin", "expect": "'seek: no DeepSeek API key — ...' stderr (buildProvider before dispatch)", "exit_code": 1 },
+        { "argv": ["acp", "--yolo"], "preconditions": "API key configured", "expect": "--yolo ignored (never parsed past 'acp'); yolo requires SEEK_ACP_YOLO env", "exit_code": 0 },
+        { "argv": ["acp"], "preconditions": "SEEK_ACP_PROVIDER/SEEK_ACP_MODEL set, flags empty", "expect": "env pins provider/model (1074-1083); pinned provider suppresses first-run wizard", "exit_code": 0 }
+      ]
+    },
+    {
+      "command": "goal",
+      "aliases": [],
+      "owner": "M4",
+      "sources": [
+        "cmd/seek/main.go:run:1459 (goalMode marker), dispatch:2293-2305 (cond from os.Args, policy.SetPref(PrefYolo))",
+        "cmd/seek/main.go:runGoal:3556-3594 (usage/client checks, turn logs, final report)",
+        "cmd/seek/main.go:helpRequested:801-811, help branch:999-1002, flag.Parse:1009, buildProvider:1114-1119+3780-3818, main:774-791"
+      ],
+      "flags": [],
+      "positionals": {
+        "entries": [
+          { "name": "run", "required": true, "variadic": false },
+          { "name": "<condition>", "required": true, "variadic": true }
+        ],
+        "count_rule": "cond = TrimSpace(Join(os.Args[3:], ' ')) only when os.Args[2]=='run' (2294-2298); otherwise cond='' -> runGoal usage error (3557-3559)",
+        "extra_positionals": "joined into the condition text — including stray flags after the verb",
+        "notes": "canonical form 'seek goal run \"<condition>\"'. Unattended loop elevates to yolo (policy.SetPref(PrefYolo), 2303) with the bash no-remote guard still active (2299-2302). Judge timeout 30m (goal.Caps, 3563). Top-level flags BEFORE the verb parse normally (e.g. -model); flags AFTER it are unreachable as flags."
+      },
+      "parsing": {
+        "mechanism": "positional lane reading raw os.Args (no lane FlagSet)",
+        "flagset_name": null,
+        "error_handling": "n/a at lane level; errors returned to main",
+        "output": "turn logs + progress to stderr; final report to stdout (3564-3585)",
+        "usage_style": "usage error is a plain error string via main 'seek:' prefix, not flag usage",
+        "positional_termination": "top-level flag.Parse stops at 'goal'; trailing top-level flags never parsed (they land in the condition text)",
+        "dashdash": "no lane-level '--' handling; a '--' token after 'run' is joined into the condition",
+        "reorder": "none",
+        "dash_equivalence": "n/a at lane level"
+      },
+      "help": {
+        "forms": ["-h", "--help (TOP-LEVEL pre-scan only)"],
+        "stream": "stdout",
+        "exit_code": 0,
+        "notes": "'seek goal -h' -> helpRequested -> printUsage stdout exit 0 (999-1002). No lane help verb: 'seek goal help' enters the lane, 'help' != 'run' -> cond '' -> usage error exit 1 (after provider init)."
+      },
+      "errors": {
+        "usage_error": { "stream": "stderr", "exit_code": 1, "detail": "'usage: seek goal run \"<condition>\"' (3557-3559) -> main 'seek: ...' exit 1; condition check precedes the client check" },
+        "provider_error": { "stream": "stderr", "exit_code": 1, "detail": "dsClient nil (non-DeepSeek provider configured) -> 'goal requires a DeepSeek provider — set an API key (seek setup)' (3560-3562) exit 1; with NO key at all buildProvider errors first (1117-1119, 3815-3818)" },
+        "runtime_failure": { "stream": "stderr", "exit_code": 1, "detail": "drv.Run error wrapped 'goal: %w' (3573-3575) -> exit 1; success prints 'goal met|stopped (<stop>) — N turn(s), N tok' stdout (3576-3585), best-effort webhook push (3589-3593)" }
+      },
+      "cases": [
+        { "argv": ["goal", "-h"], "preconditions": "none", "expect": "top-level printUsage stdout", "exit_code": 0 },
+        { "argv": ["goal"], "preconditions": "provider init succeeds (any API key configured)", "expect": "'seek: usage: seek goal run \"<condition>\"' stderr", "exit_code": 1 },
+        { "argv": ["goal", "help"], "preconditions": "provider init succeeds", "expect": "'help' != 'run' -> cond empty -> usage error stderr", "exit_code": 1 },
+        { "argv": ["goal", "run", "tests pass"], "preconditions": "only a non-DeepSeek provider key configured (dsClient nil)", "expect": "'seek: goal requires a DeepSeek provider — set an API key (seek setup)' stderr", "exit_code": 1 },
+        { "argv": ["goal", "run", "tests pass"], "preconditions": "DeepSeek key configured", "expect": "stderr 'goal: working toward ...' + turn logs; stdout 'goal met|stopped (...) — N turn(s), N tok'", "exit_code": 0 },
+        { "argv": ["goal", "run", "x", "--yolo"], "preconditions": "DeepSeek key configured", "expect": "--yolo joined into condition text (2296-2298), never parsed as a flag; lane already yolo via SetPref", "exit_code": 0 }
+      ]
+    },
+    {
+      "command": "autopilot",
+      "aliases": [],
+      "owner": "M4",
+      "sources": [
+        "cmd/seek/main.go:run:1825-1833 (autopilotMode marker + goal from os.Args, IsRemoteMutating guard)",
+        "cmd/seek/main.go:dispatch:1952-1958 (model fallback to modelDefault)",
+        "cmd/seek/main.go:runAutopilot:2999-3027 (usage/client/mgr checks, fleet run, report)",
+        "cmd/seek/main.go:helpRequested:801-811, help branch:999-1002, flag.Parse:1009, buildProvider:1114-1119+3780-3818, main:774-791"
+      ],
+      "flags": [],
+      "positionals": {
+        "entries": [
+          { "name": "run", "required": true, "variadic": false },
+          { "name": "<goal>", "required": true, "variadic": true }
+        ],
+        "count_rule": "autopilotGoal = TrimSpace(Join(os.Args[3:], ' ')) only when os.Args[2]=='run' (1827-1829); otherwise '' -> runAutopilot usage error (3000-3002)",
+        "extra_positionals": "joined into the goal text — including stray flags after the verb",
+        "notes": "canonical form 'seek autopilot run \"<goal>\"'. Parallel worktree fleet, no-remote-guarded (autopilot.IsRemoteMutating wired at 1830-1833). Fleet timeout 30m (autopilot.Caps, 3014). Model: -model flag before the verb, else provider modelDefault (1953-1957). Requires a saved session in a git repo (subagentMgr non-nil)."
+      },
+      "parsing": {
+        "mechanism": "positional lane reading raw os.Args (no lane FlagSet)",
+        "flagset_name": null,
+        "error_handling": "n/a at lane level; errors returned to main",
+        "output": "planning/fan-out progress to stderr (3016); final report rep.Body() to stdout (3021)",
+        "usage_style": "usage error is a plain error string via main 'seek:' prefix",
+        "positional_termination": "top-level flag.Parse stops at 'autopilot'; trailing top-level flags never parsed (they land in the goal text)",
+        "dashdash": "no lane-level '--' handling; tokens after 'run' are joined",
+        "reorder": "none",
+        "dash_equivalence": "n/a at lane level"
+      },
+      "help": {
+        "forms": ["-h", "--help (TOP-LEVEL pre-scan only)"],
+        "stream": "stdout",
+        "exit_code": 0,
+        "notes": "'seek autopilot -h' -> helpRequested -> printUsage stdout exit 0. No lane help verb: 'seek autopilot help' -> goal '' -> usage error exit 1 (after provider init)."
+      },
+      "errors": {
+        "usage_error": { "stream": "stderr", "exit_code": 1, "detail": "'usage: seek autopilot run \"<goal>\"' (3000-3002) -> seek: exit 1; goal check precedes client/mgr checks" },
+        "provider_error": { "stream": "stderr", "exit_code": 1, "detail": "client nil -> 'autopilot requires a model provider — set an API key (seek setup)' (3003-3005) exit 1; with NO key at all buildProvider errors first (1117-1119)" },
+        "session_error": { "stream": "stderr", "exit_code": 1, "detail": "mgr nil -> 'autopilot requires a saved session in a git repo (unavailable with --no-save or outside a git project)' (3006-3008) exit 1" },
+        "runtime_failure": { "stream": "stderr", "exit_code": 1, "detail": "drv.Run error wrapped 'autopilot: %w' (3017-3020) -> exit 1; success prints report stdout + best-effort webhook push (3021-3026)" }
+      },
+      "cases": [
+        { "argv": ["autopilot", "-h"], "preconditions": "none", "expect": "top-level printUsage stdout", "exit_code": 0 },
+        { "argv": ["autopilot"], "preconditions": "provider init succeeds", "expect": "'seek: usage: seek autopilot run \"<goal>\"' stderr", "exit_code": 1 },
+        { "argv": ["autopilot", "run", "ship feature X"], "preconditions": "no API key anywhere, non-TTY stdin", "expect": "'seek: no DeepSeek API key — ...' stderr (buildProvider before dispatch)", "exit_code": 1 },
+        { "argv": ["autopilot", "run", "ship feature X"], "preconditions": "API key configured, outside a git repo / --no-save", "expect": "'seek: autopilot requires a saved session in a git repo ...' stderr", "exit_code": 1 },
+        { "argv": ["autopilot", "run", "ship feature X"], "preconditions": "DeepSeek key + saved session in git repo", "expect": "stderr 'autopilot: planning + fanning out ...'; stdout fleet report", "exit_code": 0 },
+        { "argv": ["autopilot", "help"], "preconditions": "provider init succeeds", "expect": "'help' != 'run' -> goal empty -> usage error stderr", "exit_code": 1 }
+      ]
+    }
+  ],
+  "groups": [
+    {
+      "command": "skill",
+      "aliases": [],
+      "sources": ["internal/skillcli/skillcli.go:runSkillCmd:35-63", "cmd/seek/main.go:run:858-860, main:774-791"],
+      "no_args": { "stream": "stdout", "exit_code": 0, "detail": "printSkillHelp(stdout), return nil (36-39)" },
+      "help": { "stream": "stdout", "exit_code": 0, "detail": "verbs help|--help|-h -> printSkillHelp(stdout) nil (58-60)" },
+      "unknown_subcommand": { "stream": "stderr", "exit_code": 1, "detail": "'unknown skill subcommand %q (try `seek skill help`)' returned (62) -> main 'seek: ...' exit 1; no help text printed" }
+    },
+    {
+      "command": "skill drafts",
+      "aliases": [],
+      "sources": ["internal/skillcli/drafts.go:cmdSkillDrafts:60-120 (nested dispatch:61-70, list FlagSet:72)"],
+      "no_args": { "stream": "stdout", "exit_code": 0, "detail": "falls through to the inbox list FlagSet (72-119); empty inbox -> 'no skill drafts (drafts appear here after /distill extracts a reusable procedure)' (108-110)" },
+      "help": { "stream": "stderr", "exit_code": 1, "detail": "NO help verb: 'drafts help' is not in the dispatch switch (61-70) and falls to the list parser as an ignored positional -> inbox listing exit 0. Only -h/--help via the list FlagSet's ErrHelp -> default usage stderr, returned -> exit 1" },
+      "unknown_subcommand": { "stream": "stdout", "exit_code": 0, "detail": "NOT an error: dispatch has no default branch (61-70); unknown tokens are ignored positionals of the list FlagSet (no NArg check) -> inbox listing exit 0" }
+    },
+    {
+      "command": "memory",
+      "aliases": [],
+      "sources": ["internal/memorycli/memorycli.go:runMemoryCmd:27-52", "cmd/seek/main.go:run:861-863, main:774-791"],
+      "no_args": { "stream": "stdout", "exit_code": 0, "detail": "printHelp(stdout), return nil (28-31)" },
+      "help": { "stream": "stdout", "exit_code": 0, "detail": "verbs help|--help|-h -> printHelp(stdout) nil (44-46)" },
+      "unknown_subcommand": { "stream": "stderr+stdout", "exit_code": 1, "detail": "'memory: unknown verb %q' to STDERR, then printHelp to STDOUT, then error returned (47-51) -> main 'seek: ...' exit 1 (split-stream posture)" }
+    },
+    {
+      "command": "agents",
+      "aliases": [],
+      "sources": ["internal/agentscli/agentscli.go:Run:37-60", "cmd/seek/main.go:run:870-872, main:774-791"],
+      "no_args": { "stream": "stdout", "exit_code": 0, "detail": "printHelp(stdout), return nil (38-41)" },
+      "help": { "stream": "stdout", "exit_code": 0, "detail": "verbs help|--help|-h -> printHelp(stdout) nil (52-54)" },
+      "unknown_subcommand": { "stream": "stderr", "exit_code": 1, "detail": "'agents: unknown verb %q' to stderr + printHelp to STDERR, then error returned (55-59) -> exit 1 (help on stderr here, unlike memory/hooks)" }
+    },
+    {
+      "command": "session",
+      "aliases": [],
+      "sources": ["internal/sessioncli/sessioncli.go:Run:27-41", "cmd/seek/main.go:run:879-881, main:774-791"],
+      "no_args": { "stream": "stdout", "exit_code": 0, "detail": "printHelp(stdout), return nil (28-31)" },
+      "help": { "stream": "stdout", "exit_code": 0, "detail": "verbs help|--help|-h -> printHelp(stdout) nil (36-38)" },
+      "unknown_subcommand": { "stream": "stderr", "exit_code": 1, "detail": "'unknown session subcommand %q (try `seek session help`)' returned (40) -> exit 1; no extra help print" }
+    },
+    {
+      "command": "checkpoint",
+      "aliases": [],
+      "sources": ["internal/checkpointcli/checkpointcli.go:Run:38-56", "cmd/seek/main.go:run:885-887, main:774-791"],
+      "no_args": { "stream": "stdout", "exit_code": 0, "detail": "printHelp(stdout), return nil (39-42)" },
+      "help": { "stream": "stdout", "exit_code": 0, "detail": "verbs help|--help|-h -> printHelp(stdout) nil (51-53)" },
+      "unknown_subcommand": { "stream": "stderr", "exit_code": 1, "detail": "'unknown checkpoint subcommand %q (try `seek checkpoint help`)' returned (55) -> exit 1; no extra help print" }
+    },
+    {
+      "command": "hooks",
+      "aliases": [],
+      "sources": ["internal/hookscli/hookscli.go:Run:32-55", "cmd/seek/main.go:run:898-900, main:774-791"],
+      "no_args": { "stream": "stdout", "exit_code": 0, "detail": "printHelp(stdout), return nil (33-36)" },
+      "help": { "stream": "stdout", "exit_code": 0, "detail": "verbs help|--help|-h -> printHelp(stdout) nil (47-49)" },
+      "unknown_subcommand": { "stream": "stderr+stdout", "exit_code": 1, "detail": "'hooks: unknown verb %q' to STDERR, then printHelp to STDOUT, then error returned (50-54) -> exit 1 (split-stream posture, same as memory)" }
+    },
+    {
+      "command": "worktree",
+      "aliases": [],
+      "sources": ["internal/worktreecli/worktreecli.go:Run:41-57", "cmd/seek/main.go:run:906-908, main:774-791"],
+      "no_args": { "stream": "stdout", "exit_code": 0, "detail": "printHelp(stdout), return nil (42-45)" },
+      "help": { "stream": "stdout", "exit_code": 0, "detail": "verbs help|--help|-h -> printHelp(stdout) nil (52-54)" },
+      "unknown_subcommand": { "stream": "stderr", "exit_code": 1, "detail": "'unknown worktree subcommand %q (try `seek worktree help`)' returned (56) -> exit 1; no extra help print" }
+    },
+    {
+      "command": "cron",
+      "aliases": [],
+      "sources": ["internal/routinescli/routinescli.go:Run:71-95", "cmd/seek/main.go:run:915-917, main:774-791"],
+      "no_args": { "stream": "stdout", "exit_code": 0, "detail": "printHelp(stdout), return nil (72-75)" },
+      "help": { "stream": "stdout", "exit_code": 0, "detail": "verbs help|--help|-h -> printHelp(stdout) nil (90-92)" },
+      "unknown_subcommand": { "stream": "stderr", "exit_code": 1, "detail": "'unknown cron subcommand %q (try `seek cron help`)' returned (94) -> exit 1; no extra help print" }
+    },
+    {
+      "command": "cron config",
+      "aliases": [],
+      "sources": ["internal/routinescli/routinescli.go:cmdConfig:423-434 (hand-written sub-dispatch)", "internal/routinescli/routinescli.go:cmdConfigCheck:441-515"],
+      "no_args": { "stream": "stdout", "exit_code": 0, "detail": "sub defaults to 'check' (424) -> cmdConfigCheck with no args; no webhooks -> 'no push webhooks configured (push_webhooks in ~/.seek/config.json)' stdout exit 0 (453-456); with valid webhooks -> ✓ lines + 'N webhook(s) OK' exit 0" },
+      "help": { "stream": "stderr", "exit_code": 1, "detail": "NO help verb: 'cron config help' -> unknown-subcommand error exit 1 (431-432). 'cron config -h' keeps sub='check' (dash-prefixed args[0] not consumed, 425) and passes ['-h'] to cmdConfigCheck -> flag.ErrHelp -> default usage stderr -> exit 1" },
+      "unknown_subcommand": { "stream": "stderr", "exit_code": 1, "detail": "'unknown `cron config` subcommand %q (try `check`)' (432) -> seek: exit 1" }
+    },
+    {
+      "command": "keys",
+      "aliases": [],
+      "sources": ["internal/keyscli/keyscli.go:Run:51-71, helpText:19-38, ErrUsage:45", "cmd/seek/main.go:run:924-932 (errors.Is(err, keyscli.ErrUsage) -> os.Exit(2))"],
+      "no_args": { "stream": "stderr", "exit_code": 2, "detail": "helpText to STDERR + return ErrUsage (52-55) -> main os.Exit(2) (926-927); the ONLY group whose no-args form is stderr/2" },
+      "help": { "stream": "stdout", "exit_code": 0, "detail": "verbs help|-h|--help -> helpText to STDOUT, return nil (63-65)" },
+      "unknown_subcommand": { "stream": "stderr", "exit_code": 2, "detail": "'seek keys: unknown subcommand %q\\n\\n' + helpText to STDERR + ErrUsage (66-69) -> main os.Exit(2)" }
+    }
+  ]
+}
