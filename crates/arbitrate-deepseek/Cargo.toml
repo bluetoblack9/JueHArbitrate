@@ -1,0 +1,6 @@
+[package]
+name = "arbitrate-deepseek"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]

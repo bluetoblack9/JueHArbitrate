@@ -1,0 +1,42 @@
+[workspace]
+resolver = "3"
+members = ["crates/*"]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2024"
+
+[workspace.dependencies]
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+sha2 = "0.10"
+arbitrate-core = { path = "crates/arbitrate-core" }
+arbitrate-state = { path = "crates/arbitrate-state" }
+arbitrate-deepseek = { path = "crates/arbitrate-deepseek" }
+arbitrate-llm = { path = "crates/arbitrate-llm" }
+arbitrate-tools = { path = "crates/arbitrate-tools" }
+arbitrate-agent = { path = "crates/arbitrate-agent" }
+arbitrate-tui = { path = "crates/arbitrate-tui" }
+arbitrate-surfaces = { path = "crates/arbitrate-surfaces" }
+
+[package]
+name = "arbitrate"
+version.workspace = true
+edition.workspace = true
+default-run = "arbitrate"
+
+[dependencies]
+serde_json = { workspace = true }
+
+[dev-dependencies]
+serde = { workspace = true }
+serde_json = { workspace = true }
+sha2 = { workspace = true }
+
+[[bin]]
+name = "arbitrate"
+path = "src/main.rs"
+
+[[bin]]
+name = "mcp-mock"
+path = "src/bin/mcp-mock.rs"

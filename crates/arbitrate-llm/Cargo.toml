@@ -1,0 +1,6 @@
+[package]
+name = "arbitrate-llm"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]

@@ -1,0 +1,6 @@
+[package]
+name = "arbitrate-surfaces"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
