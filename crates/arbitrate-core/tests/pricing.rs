@@ -367,3 +367,99 @@ fn set_model_rates_lifecycle() {
         0.30
     );
 }
+
+// ---- Task 3: UTC+8 峰谷时钟（KAT Unix 秒已 date 核验，D3-1/D3-6）----
+
+/// 2026-01-15 00:00 北京（周四）= 2026-01-14 16:00 UTC。
+const JAN15_BJ_MIDNIGHT: i64 = 1_768_406_400;
+
+fn bj(h: i64, m: i64) -> i64 {
+    JAN15_BJ_MIDNIGHT + h * 3600 + m * 60
+}
+
+#[test]
+fn current_tier_peak_boundaries() {
+    // 周四峰时窗口边界：前/内/后，左闭右开
+    let cases: &[(i64, i64, Tier)] = &[
+        (0, 0, Tier::OffPeak),
+        (8, 59, Tier::OffPeak),
+        (9, 0, Tier::Standard),
+        (11, 59, Tier::Standard),
+        (12, 0, Tier::OffPeak),
+        (13, 59, Tier::OffPeak),
+        (14, 0, Tier::Standard),
+        (17, 59, Tier::Standard),
+        (18, 0, Tier::OffPeak),
+        (23, 59, Tier::OffPeak),
+    ];
+    for &(h, m, want) in cases {
+        assert_eq!(pricing::current_tier(bj(h, m)), want, "BJ {h:02}:{m:02}");
+    }
+}
+
+#[test]
+fn current_tier_timezone_aware() {
+    // 输入是 UTC 瞬间，判定按北京钟面——不是 UTC 钟面
+    assert_eq!(pricing::current_tier(1_768_404_600), Tier::OffPeak); // Jan14 15:30 UTC = BJ 23:30
+    assert_eq!(pricing::current_tier(1_768_352_400), Tier::Standard); // Jan14 01:00 UTC = BJ 09:00
+    assert_eq!(pricing::current_tier(1_768_408_200), Tier::OffPeak); // Jan14 16:30 UTC = BJ Jan15 00:30（跨日）
+}
+
+#[test]
+fn current_tier_weekend_offpeak() {
+    assert_eq!(pricing::current_tier(1_789_092_000), Tier::Standard); // 周五 Sep11 10:00 BJ（峰时窗口内）
+    assert_eq!(pricing::current_tier(1_789_178_400), Tier::OffPeak); // 周六 Sep12 10:00 BJ（窗口钟面仍谷）
+    assert_eq!(pricing::current_tier(1_789_284_600), Tier::OffPeak); // 周日 Sep13 15:30 BJ
+}
+
+#[test]
+fn next_transition_weekday_bands() {
+    assert_eq!(
+        pricing::next_transition(bj(3, 0)),
+        (Tier::Standard, bj(9, 0))
+    );
+    assert_eq!(
+        pricing::next_transition(bj(9, 0)),
+        (Tier::OffPeak, bj(12, 0))
+    );
+    assert_eq!(
+        pricing::next_transition(bj(13, 0)),
+        (Tier::Standard, bj(14, 0))
+    );
+    assert_eq!(
+        pricing::next_transition(bj(14, 0)),
+        (Tier::OffPeak, bj(18, 0))
+    );
+    // 周四 23:59 → 周五 09:00（次日不跨周末）
+    assert_eq!(
+        pricing::next_transition(bj(23, 59)),
+        (Tier::Standard, 1_768_525_200)
+    );
+}
+
+#[test]
+fn next_transition_skips_weekend() {
+    // 周五晚/周六/周日 → 一律周一 09:00，不是最近日历边界
+    let monday_09 = 1_789_347_600; // 2026-09-14 周一 09:00 BJ
+    assert_eq!(
+        pricing::next_transition(1_789_142_340),
+        (Tier::Standard, monday_09)
+    ); // 周五 23:59
+    assert_eq!(
+        pricing::next_transition(1_789_178_400),
+        (Tier::Standard, monday_09)
+    ); // 周六 10:00
+    assert_eq!(
+        pricing::next_transition(1_789_300_800),
+        (Tier::Standard, monday_09)
+    ); // 周日 20:00
+}
+
+#[test]
+fn next_transition_utc_crossday() {
+    // UTC 下午 = 北京次日凌晨：下一变化按北京日算
+    assert_eq!(
+        pricing::next_transition(1_768_408_200),
+        (Tier::Standard, 1_768_438_800)
+    ); // BJ Jan15 00:30 → 09:00
+}

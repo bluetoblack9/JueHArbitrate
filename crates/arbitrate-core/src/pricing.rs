@@ -565,3 +565,94 @@ pub fn format_cost(usd: f64) -> String {
         format!("${usd:.2}")
     }
 }
+
+// ---- UTC+8 峰谷时钟（Task 3）----
+// 所有时间 Asia/Shanghai（UTC+8，无 DST）。硬编码偏移避免依赖系统 tzdata
+// （最小 Linux 容器常缺）。输入输出均为 Unix epoch 秒（UTC）；生产传
+// SystemTime::now() 换算秒，测试注入固定秒（D3-1）。
+
+/// 北京偏移秒数。
+const BEIJING_OFFSET_SECS: i64 = 8 * 3600;
+const SECS_PER_DAY: i64 = 86_400;
+
+/// 峰时窗口（北京时间）：周一–五 09:00–12:00 与 14:00–18:00，左闭右开，
+/// 对应 DeepSeek 公布的工作日 01:00–04:00 / 06:00–10:00 UTC（2026-11-14
+/// 价目页重申）。价目页还把中国法定节假日排除出峰时——刻意近似掉：
+/// 节假日表是内置卡设计拒绝的数据依赖，且把节假日工作日按峰时计价只
+/// 高估防御性成本显示（err high）。其余一切——晚间、清晨、周末——
+/// 谷时（半价）。
+const PEAK1_START_MINS: i64 = 9 * 60;
+const PEAK1_END_MINS: i64 = 12 * 60;
+const PEAK2_START_MINS: i64 = 14 * 60;
+const PEAK2_END_MINS: i64 = 18 * 60;
+
+/// 拆 Unix 秒为（1970-01-01 起的北京日序, 日内秒）。
+fn beijing_parts(now_unix: i64) -> (i64, i64) {
+    let local = now_unix + BEIJING_OFFSET_SECS;
+    (
+        local.div_euclid(SECS_PER_DAY),
+        local.rem_euclid(SECS_PER_DAY),
+    )
+}
+
+/// 星期：0=周一 .. 6=周日。日序 0（1970-01-01）是周四。
+fn weekday(days: i64) -> i64 {
+    (days + 3).rem_euclid(7)
+}
+
+/// 给定瞬间生效的计价 tier。生产传当前时间，测试传固定 Unix 秒。
+pub fn current_tier(now_unix: i64) -> Tier {
+    let (days, secs) = beijing_parts(now_unix);
+    if weekday(days) >= 5 {
+        return Tier::OffPeak;
+    }
+    let mins = secs / 60;
+    if (PEAK1_START_MINS..PEAK1_END_MINS).contains(&mins)
+        || (PEAK2_START_MINS..PEAK2_END_MINS).contains(&mins)
+    {
+        Tier::Standard
+    } else {
+        Tier::OffPeak
+    }
+}
+
+/// 下一 tier 变化及其起始瞬间（Unix 秒）。驱动"等谷时?"提示。
+///
+/// 举例（全部北京时间）：
+/// - 09:00 峰时 → (谷时, 当日 12:00)
+/// - 13:00 谷时 → (峰时, 当日 14:00)
+/// - 03:00 谷时 → (峰时, 当日 09:00)
+/// - 23:59 谷时 → (峰时, 次日 09:00——次日是周末则跳到周一 09:00)
+pub fn next_transition(now_unix: i64) -> (Tier, i64) {
+    let (days, secs) = beijing_parts(now_unix);
+    let at = |day: i64, hour: i64, min: i64| {
+        day * SECS_PER_DAY + hour * 3600 + min * 60 - BEIJING_OFFSET_SECS
+    };
+    // 周末全天谷时：周末内任意位置的下一变化都是周一 09:00 峰时恢复——
+    // 不是最近日历边界（周六 12:00 根本不是变化点）。
+    if weekday(days) >= 5 {
+        let mut next = days + 1;
+        while weekday(next) != 0 {
+            next += 1;
+        }
+        return (Tier::Standard, at(next, 9, 0));
+    }
+    let mins = secs / 60;
+    if mins < PEAK1_START_MINS {
+        (Tier::Standard, at(days, 9, 0)) // [00:00,09:00) 谷 → 峰 1
+    } else if mins < PEAK1_END_MINS {
+        (Tier::OffPeak, at(days, 12, 0)) // [09:00,12:00) 峰 1 → 谷
+    } else if mins < PEAK2_START_MINS {
+        (Tier::Standard, at(days, 14, 0)) // [12:00,14:00) 谷 → 峰 2
+    } else if mins < PEAK2_END_MINS {
+        (Tier::OffPeak, at(days, 18, 0)) // [14:00,18:00) 峰 2 → 谷
+    } else {
+        // [18:00,24:00) 谷 → 次日峰 1。次日可能是周六（周五晚）——
+        // 跳过整个周末到周一。
+        let mut next = days + 1;
+        while weekday(next) >= 5 {
+            next += 1;
+        }
+        (Tier::Standard, at(next, 9, 0))
+    }
+}
