@@ -4,6 +4,7 @@ pub mod agenttypes;
 pub mod budget;
 pub mod cache;
 pub mod config;
+pub mod diff;
 pub mod frontmatter;
 pub mod i18n;
 pub mod paths;
