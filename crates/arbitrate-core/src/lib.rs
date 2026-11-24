@@ -5,6 +5,7 @@ pub mod budget;
 pub mod cache;
 pub mod config;
 pub mod frontmatter;
+pub mod i18n;
 pub mod paths;
 pub mod pricing;
 pub mod types;
