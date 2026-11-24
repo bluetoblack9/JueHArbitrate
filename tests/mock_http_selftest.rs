@@ -1,5 +1,48 @@
 mod support;
+use std::io::{ErrorKind, Read, Write};
+use std::net::TcpStream;
+use std::time::Duration;
 use support::mock_http::*;
+
+#[test]
+fn connected_client_can_wait_before_sending_request() {
+    let m = MockHttp::start(vec![Reply::Json {
+        status: 200,
+        body: "delayed-request-ok".into(),
+    }]);
+    let mut client = TcpStream::connect(m.addr).unwrap();
+    client
+        .set_read_timeout(Some(Duration::from_secs(1)))
+        .unwrap();
+
+    // No request bytes exist yet: the server must wait, keeping the connection open.
+    let idle_result = client.peek(&mut [0u8; 1]);
+    assert!(
+        matches!(
+            idle_result,
+            Err(ref error) if matches!(error.kind(), ErrorKind::WouldBlock | ErrorKind::TimedOut)
+        ),
+        "the server must await request headers, got {idle_result:?}"
+    );
+
+    client
+        .set_read_timeout(Some(Duration::from_secs(5)))
+        .unwrap();
+    client
+        .write_all(b"POST /delayed HTTP/1.1\r\nHost: localhost\r\nContent-Length: 2\r\n\r\n{}")
+        .unwrap();
+    let mut response = String::new();
+    client.read_to_string(&mut response).unwrap();
+    assert_eq!(
+        response,
+        "HTTP/1.1 200 X\r\nContent-Type: application/json\r\nContent-Length: 18\r\nConnection: close\r\n\r\ndelayed-request-ok"
+    );
+    let requests = m.requests.lock().unwrap();
+    assert_eq!(requests.len(), 1);
+    assert_eq!(requests[0].method, "POST");
+    assert_eq!(requests[0].path, "/delayed");
+    assert_eq!(requests[0].body, "{}");
+}
 
 #[test]
 fn json_roundtrip_and_request_recording() {

@@ -71,6 +71,8 @@ fn handle(
     requests: Arc<Mutex<Vec<Recorded>>>,
     queue: Arc<Mutex<VecDeque<Reply>>>,
 ) -> std::io::Result<()> {
+    // Accepted sockets can inherit the listener's nonblocking mode (e.g. on macOS).
+    stream.set_nonblocking(false)?;
     stream.set_read_timeout(Some(Duration::from_secs(5)))?;
     let mut reader = BufReader::new(stream.try_clone()?);
     let mut request_line = String::new();
