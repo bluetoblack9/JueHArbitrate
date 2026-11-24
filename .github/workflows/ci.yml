@@ -11,6 +11,9 @@ jobs:
       - uses: actions/checkout@v4
       - name: Install pinned toolchain (rust-toolchain.toml)
         run: rustup show
+      - name: Windows build
+        if: matrix.os == 'windows-latest'
+        run: cargo build --workspace --locked
       - run: cargo fmt --check --all
       - run: cargo clippy --workspace --locked -- -D warnings
       - run: cargo test --workspace --locked
