@@ -121,6 +121,7 @@ struct Stub {
     written: Vec<(String, ValueKind)>,
     proc_path: Option<OsString>,
     proc_set: Vec<String>,
+    proc_set_err: bool,
     env: Vec<(String, String)>,
     broadcasts: usize,
 }
@@ -133,6 +134,7 @@ impl Stub {
             written: Vec::new(),
             proc_path: None,
             proc_set: Vec::new(),
+            proc_set_err: false,
             env: Vec::new(),
             broadcasts: 0,
         }
@@ -154,14 +156,19 @@ impl WindowsBackend for Stub {
             return Err(PathopError::Backend("write fail".into()));
         }
         self.written.push((value.to_string(), kind));
+        self.user_path = Some((value.to_string(), kind));
         Ok(())
     }
     fn process_path(&self) -> Option<OsString> {
         self.proc_path.clone()
     }
-    fn set_process_path(&mut self, value: &str) {
+    fn set_process_path(&mut self, value: &str) -> std::io::Result<()> {
+        if self.proc_set_err {
+            return Err(std::io::ErrorKind::PermissionDenied.into());
+        }
         self.proc_set.push(value.to_string());
         self.proc_path = Some(value.into());
+        Ok(())
     }
     fn env(&self, name: &str) -> Option<String> {
         self.env
@@ -301,6 +308,69 @@ fn ensure_rejects_unrepresentable_directory_before_mutation() {
     assert!(b.written.is_empty());
     assert!(b.proc_set.is_empty());
     assert_eq!(b.broadcasts, 0);
+}
+
+#[test]
+fn ensure_rejects_oversized_process_path_before_mutation() {
+    let mut b = Stub::new();
+    // 16,383 scalars, but 32,766 UTF-16 code units before appending the directory.
+    b.proc_path = Some("😀".repeat(16_383).into());
+    let before = b.proc_path.clone();
+    let err = ensure_in_path_windows("Tools", true, &mut b).unwrap_err();
+    assert!(err.to_string().contains("process PATH"));
+    assert_eq!(b.proc_path, before);
+    assert!(b.written.is_empty());
+    assert!(b.proc_set.is_empty());
+    assert_eq!(b.broadcasts, 0);
+}
+
+#[test]
+fn ensure_reports_partial_success_when_process_update_fails() {
+    let mut b = Stub::new();
+    let old = Some(OsString::from(r"C:\Other"));
+    b.proc_path = old.clone();
+    b.proc_set_err = true;
+    let err = ensure_in_path_windows("Tools", true, &mut b).unwrap_err();
+    assert!(matches!(
+        err,
+        PathopError::ProcessPathUpdate {
+            user_path_added: true,
+            ..
+        }
+    ));
+    assert_eq!(b.written, vec![(r"C:\Tools".into(), ValueKind::ExpandSz)]);
+    assert_eq!(b.proc_path, old);
+    assert_eq!(b.broadcasts, 1);
+
+    let err = ensure_in_path_windows("Tools", true, &mut b).unwrap_err();
+    assert!(matches!(
+        err,
+        PathopError::ProcessPathUpdate {
+            user_path_added: false,
+            ..
+        }
+    ));
+    assert_eq!(b.written.len(), 1);
+    assert_eq!(b.broadcasts, 1);
+
+    b.proc_set_err = false;
+    assert!(!ensure_in_path_windows("Tools", true, &mut b).unwrap());
+    assert_eq!(b.proc_set, vec![r"C:\Other;C:\Tools"]);
+    assert_eq!(b.written.len(), 1);
+    assert_eq!(b.broadcasts, 1);
+}
+
+#[test]
+fn ensure_dollar_directory_remains_findable_and_idempotent() {
+    let mut b = Stub::new();
+    b.env.push(("local".into(), "expanded".into()));
+    let dir = r"Tools\$local";
+    assert!(ensure_in_path_windows(dir, true, &mut b).unwrap());
+    assert!(is_in_user_path_windows(dir, &b).unwrap());
+    assert!(!ensure_in_path_windows(dir, true, &mut b).unwrap());
+    assert_eq!(b.written, vec![(format!("C:\\{dir}"), ValueKind::ExpandSz)]);
+    assert_eq!(b.proc_set.len(), 1);
+    assert_eq!(b.broadcasts, 1);
 }
 
 #[test]

@@ -535,6 +535,8 @@ pub fn load_bytes(data: &[u8], path: &str, warn: &mut dyn Write) -> (KeyMap, boo
     // BTreeMap 排序迭代 → 警告序与冲突 first-wins 确定（D4-14）
     for (name_raw, value) in &raw {
         let key = value.trim();
+        // Validate the decoded value before trim can hide escaped controls at its edges.
+        let has_controls = value.chars().any(char::is_control);
         let action_name = name_raw.trim();
         let action = match Action::parse(action_name) {
             Some(a) => a,
@@ -549,7 +551,7 @@ pub fn load_bytes(data: &[u8], path: &str, warn: &mut dyn Write) -> (KeyMap, boo
                 continue;
             }
         };
-        if key.is_empty() {
+        if key.is_empty() && !has_controls {
             let _ = writeln!(
                 warn,
                 "keybindings: action {:?} has empty value in {}",
@@ -559,7 +561,7 @@ pub fn load_bytes(data: &[u8], path: &str, warn: &mut dyn Write) -> (KeyMap, boo
             continue;
         }
         let key = normalize_key(key);
-        if is_reserved_key(&key) {
+        if !has_controls && is_reserved_key(&key) {
             let _ = writeln!(
                 warn,
                 "keybindings: reserved key {:?} cannot be rebound ({} = {:?} in {})",
@@ -570,11 +572,12 @@ pub fn load_bytes(data: &[u8], path: &str, warn: &mut dyn Write) -> (KeyMap, boo
             );
             continue;
         }
-        if !looks_like_known_key(&key) {
+        if has_controls || !looks_like_known_key(&key) {
+            let rejected = if has_controls { value.as_str() } else { &key };
             let _ = writeln!(
                 warn,
                 "keybindings: unrecognised key {:?} for action {:?} in {} (see `arbitrate keys actions` for examples)",
-                key,
+                rejected,
                 action_name,
                 display_path(path)
             );

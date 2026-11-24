@@ -123,6 +123,23 @@ fn unrecognised_key_soft() {
 }
 
 #[test]
+fn escaped_controls_in_keybindings_keep_defaults() {
+    for value in [r"ctrl+x\u0000", r"ctrl+\nx", r"ctrl+x\r", r"\u0085ctrl+x"] {
+        let input = format!("[bindings]\nsubmit = \"{value}\"\nsteer = 'ctrl+y'\n");
+        let (km, ok, w) = warn_string(input.as_bytes(), "f.toml");
+        assert!(ok);
+        assert!(
+            w.starts_with("keybindings: unrecognised key "),
+            "{value}: {w}"
+        );
+        assert_eq!(w.lines().count(), 1);
+        assert_eq!(km.resolve("enter"), Action::Submit);
+        assert_eq!(km.source_for(Action::Submit), "default");
+        assert_eq!(km.resolve("ctrl+y"), Action::Steer);
+    }
+}
+
+#[test]
 fn valid_rebind_reverse() {
     let (km, ok, w) = warn_string(b"[bindings]\nsubmit = \"ctrl+x\"\n", "f.toml");
     assert!(ok);

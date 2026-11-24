@@ -7,15 +7,29 @@
 
 use std::{ffi::OsString, fmt};
 
-/// pathop 错误。Backend = 系统调用/FFI 失败详情。
+/// PATH operation failures, including partial success after a persistent write.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum PathopError {
     Backend(String),
+    ProcessPathUpdate {
+        user_path_added: bool,
+        reason: String,
+    },
 }
 impl fmt::Display for PathopError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             PathopError::Backend(s) => write!(f, "pathop: {s}"),
+            PathopError::ProcessPathUpdate {
+                user_path_added,
+                reason,
+            } => {
+                write!(f, "pathop: failed to update process PATH: {reason}")?;
+                if *user_path_added {
+                    write!(f, " (user PATH was updated)")?;
+                }
+                Ok(())
+            }
         }
     }
 }
@@ -37,7 +51,7 @@ pub trait WindowsBackend {
     fn write_user_path(&mut self, value: &str, kind: ValueKind) -> Result<(), PathopError>;
     /// Read the original process PATH, including non-Unicode values. None means unset.
     fn process_path(&self) -> Option<OsString>;
-    fn set_process_path(&mut self, value: &str);
+    fn set_process_path(&mut self, value: &str) -> std::io::Result<()>;
     fn env(&self, name: &str) -> Option<String>;
     fn broadcast(&mut self);
 }
@@ -264,7 +278,7 @@ pub fn is_in_path(dir: &str) -> bool {
     is_in_path_with(&std::env::var("PATH").unwrap_or_default(), dir)
 }
 
-/// 用户永久 PATH 是否含 abs_dir（展开 $VAR + clean_windows + fold）。
+/// 用户永久 PATH 是否含 abs_dir。先匹配字面路径，再尝试展开 $VAR。
 pub fn user_path_contains_with(
     current_path: &str,
     abs_dir: &str,
@@ -275,8 +289,10 @@ pub fn user_path_contains_with(
         if p.is_empty() {
             continue;
         }
-        let expanded = clean_windows(&expand_env_with(p, &get));
-        if expanded.eq_ignore_ascii_case(abs_dir) {
+        if clean_windows(p).eq_ignore_ascii_case(abs_dir)
+            || (p.contains('$')
+                && clean_windows(&expand_env_with(p, &get)).eq_ignore_ascii_case(abs_dir))
+        {
             return true;
         }
     }
@@ -284,6 +300,9 @@ pub fn user_path_contains_with(
 }
 
 // ---- Windows 纯算法（可注入替身，跨平台测试）----
+
+// Documented SetEnvironmentVariableW limit for the variable value.
+const MAX_PROCESS_PATH_UTF16: usize = 32_767;
 
 fn process_path_update(
     abs_dir: &str,
@@ -304,10 +323,18 @@ fn process_path_update(
     } else {
         format!("{current};{abs_dir}")
     };
+    if new.encode_utf16().count() > MAX_PROCESS_PATH_UTF16 {
+        return Err(PathopError::Backend(format!(
+            "process PATH would exceed {MAX_PROCESS_PATH_UTF16} UTF-16 code units"
+        )));
+    }
     Ok(Some(new))
 }
 
-/// ensureInPATH 纯核心。返回 true = 新注册表条目已 append。
+/// Add the directory to the Windows user PATH and update the process PATH.
+/// Returns true when it adds a user entry. If the process update fails after
+/// the user write, keep the persisted entry and broadcast the change if requested.
+/// The error tells callers whether a user entry was added by this attempt.
 pub fn ensure_in_path_windows(
     dir: &str,
     with_broadcast: bool,
@@ -318,6 +345,9 @@ pub fn ensure_in_path_windows(
         return Err(PathopError::Backend(
             "directory contains a semicolon and cannot be added as one PATH entry".into(),
         ));
+    }
+    if abs_dir.contains('\0') {
+        return Err(PathopError::Backend("directory contains a NUL".into()));
     }
     let (current_path, val_type) = match b.read_user_path()? {
         Some(v) => v,
@@ -335,12 +365,14 @@ pub fn ensure_in_path_windows(
         };
         b.write_user_path(&new_path, val_type)?;
     }
-    if let Some(path) = process_update {
-        b.set_process_path(&path);
-    }
+    let process_result = process_update.map_or(Ok(()), |path| b.set_process_path(&path));
     if added && with_broadcast {
         b.broadcast();
     }
+    process_result.map_err(|error| PathopError::ProcessPathUpdate {
+        user_path_added: added,
+        reason: error.to_string(),
+    })?;
     Ok(added)
 }
 
@@ -451,6 +483,10 @@ mod win {
             timeout: u32,
             result: *mut usize,
         ) -> isize;
+    }
+    #[link(name = "kernel32")]
+    unsafe extern "system" {
+        fn SetEnvironmentVariableW(name: *const u16, value: *const u16) -> i32;
     }
 
     fn to_wide(s: &str) -> Vec<u16> {
@@ -602,11 +638,14 @@ mod win {
         fn process_path(&self) -> Option<OsString> {
             std::env::var_os("PATH")
         }
-        fn set_process_path(&mut self, value: &str) {
-            // SAFETY: this backend exists only on Windows, where set_var is thread-safe.
-            unsafe {
-                std::env::set_var("PATH", value);
+        fn set_process_path(&mut self, value: &str) -> std::io::Result<()> {
+            let name = to_wide("PATH");
+            let value = to_wide(value);
+            // SAFETY: both pointers are NUL-terminated UTF-16 buffers live for the call.
+            if unsafe { SetEnvironmentVariableW(name.as_ptr(), value.as_ptr()) } == 0 {
+                return Err(std::io::Error::last_os_error());
             }
+            Ok(())
         }
         fn env(&self, name: &str) -> Option<String> {
             std::env::var(name).ok()
