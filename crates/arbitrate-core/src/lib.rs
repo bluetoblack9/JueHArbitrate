@@ -10,6 +10,7 @@ pub mod filerefs;
 pub mod frontmatter;
 pub mod i18n;
 pub mod imgrefs;
+pub mod keymap;
 pub mod pathop;
 pub mod paths;
 pub mod pricing;
