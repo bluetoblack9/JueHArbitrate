@@ -166,10 +166,9 @@ pub fn format_message(s: &str, args: &[Arg]) -> String {
                 continue;
             }
             if !matches!(verb, 's' | 'd' | 'q' | 'v') {
-                // 未知 verb 字面保留（目录无此 verb，parity 保证不可达）
+                // 未知 verb 字面保留；仅消费 '%'，后续按完整 UTF-8 char 复制。
                 out.push('%');
-                out.push(verb);
-                i += 2;
+                i += 1;
                 continue;
             }
             let arg = args.get(argi);

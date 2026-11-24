@@ -104,6 +104,9 @@ fn formatter_verbs() {
     assert_eq!(format_message("%v", &[Arg::Int(9)]), "9");
     assert_eq!(format_message("100%%", &[]), "100%");
     assert_eq!(format_message("no verbs", &[Arg::Int(1)]), "no verbs"); // 多余 arg 忽略
+    assert_eq!(format_message("50%…", &[]), "50%…");
+    assert_eq!(format_message("unknown %z verb", &[]), "unknown %z verb");
+    assert_eq!(format_message("trailing %", &[]), "trailing %");
 }
 
 #[test]
@@ -172,9 +175,9 @@ fn catalogue_parity() {
 
 #[test]
 fn placeholder_signature_parity() {
-    fn verbs(s: &str) -> Vec<char> {
+    fn verbs(s: &str) -> String {
         let b = s.as_bytes();
-        let mut out = Vec::new();
+        let mut out = String::new();
         let mut i = 0;
         while i < b.len() {
             if b[i] == b'%' && i + 1 < b.len() {
@@ -192,13 +195,36 @@ fn placeholder_signature_parity() {
         out
     }
     let zh: BTreeMap<_, _> = MESSAGES_ZH.iter().copied().collect();
+    fn expected_signature(key: &str) -> &'static str {
+        match key {
+            "view.starting" => "",
+            "view.provider_banner" => "s",
+            "view.thinking" => "",
+            "view.thinking_s" => "d",
+            "view.thinking_ms" => "dd",
+            "view.queue.steering" => "",
+            "view.queue.queued" => "",
+            "menu.hint.simple" => "",
+            "menu.hint.toggle" => "",
+            "cmd.unknown" => "s",
+            "lang.status" => "s",
+            "lang.switched" => "s",
+            "lang.unsupported" => "q",
+            "lang.persist_failed" => "v",
+            _ => panic!("unexpected catalogue key: {key}"),
+        }
+    }
     for (key, en_val) in MESSAGES_EN {
         let zh_val = zh.get(key).unwrap();
-        assert_eq!(
-            verbs(en_val),
-            verbs(zh_val),
-            "key {key} 占位符签名 en/zh 必须一致"
-        );
+        let expected = expected_signature(key);
+        for verb in verbs(en_val).chars().chain(verbs(zh_val).chars()) {
+            assert!(
+                matches!(verb, 's' | 'd' | 'q' | 'v'),
+                "key {key} 含不支持的占位符 %{verb}"
+            );
+        }
+        assert_eq!(verbs(en_val), expected, "key {key} 英文占位符签名");
+        assert_eq!(verbs(zh_val), expected, "key {key} 中文占位符签名");
     }
 }
 
@@ -231,7 +257,18 @@ fn translation_smoke() {
     // 所有目录值渲染后不得含 Go fmt 错误标记 "%!"
     for bundle in [Bundle::new("en"), Bundle::new("zh")] {
         for (key, _) in MESSAGES_EN {
-            let rendered = bundle.t(key, &[]);
+            let args = match *key {
+                "view.provider_banner" => vec![Arg::Str("provider-x".into())],
+                "view.thinking_s" => vec![Arg::Int(7)],
+                "view.thinking_ms" => vec![Arg::Int(2), Arg::Int(5)],
+                "cmd.unknown" => vec![Arg::Str("/unknown".into())],
+                "lang.status" => vec![Arg::Str("en".into())],
+                "lang.switched" => vec![Arg::Str("zh".into())],
+                "lang.unsupported" => vec![Arg::Str("fr".into())],
+                "lang.persist_failed" => vec![Arg::Str("disk full".into())],
+                _ => vec![],
+            };
+            let rendered = bundle.t(key, &args);
             assert!(
                 !rendered.contains("%!"),
                 "key {key} 渲染含错误标记: {rendered}"
