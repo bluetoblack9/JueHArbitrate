@@ -127,7 +127,7 @@ fn make_hunks(ops: &[Op], ctx: usize) -> Vec<Hunk> {
     let mut wins: Vec<(usize, usize)> = Vec::new();
     for idx in changed {
         let lo = idx.saturating_sub(ctx);
-        let hi = (idx + ctx + 1).min(ops.len());
+        let hi = idx.saturating_add(ctx).saturating_add(1).min(ops.len());
         if let Some(last) = wins.last_mut()
             && lo <= last.1
         {

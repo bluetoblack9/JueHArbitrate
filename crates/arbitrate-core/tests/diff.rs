@@ -35,6 +35,9 @@ fn ctx_zero() {
     // ctx0：窗口仅变更 ops [del b, ins B]，oldStart/newStart=2
     let want = "--- a/f\n+++ b/f\n@@ -2,1 +2,1 @@\n-b\n+B\n";
     assert_eq!(unified_context("a\nb\nc\n", "a\nB\nc\n", "f", 0), want);
+
+    let want = "--- a/f\n+++ b/f\n@@ -1,1 +1,1 @@\n-x\n+y\n";
+    assert_eq!(unified_context("x\n", "y\n", "f", usize::MAX), want);
 }
 
 #[test]
