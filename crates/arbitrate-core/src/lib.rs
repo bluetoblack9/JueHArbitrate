@@ -3,6 +3,7 @@
 pub mod agenttypes;
 pub mod budget;
 pub mod cache;
+pub mod childenv;
 pub mod config;
 pub mod diff;
 pub mod filerefs;
