@@ -22,19 +22,14 @@ fn is_image_ext(ext: &str) -> bool {
 }
 
 /// 剥 @ 前缀、两端引号/反引号/括号、尾句标点——循环至稳定。
-fn clean_token(tok: &str) -> String {
-    let mut tok = tok.to_string();
+fn clean_token(mut tok: &str) -> String {
     loop {
-        let prev = tok.clone();
-        tok = tok
-            .trim_matches(['"', '\'', '`', '(', ')', '[', ']', '<', '>'])
-            .to_string();
-        tok = tok
-            .trim_end_matches(['.', ',', ';', ':', '!', '?'])
-            .to_string();
-        tok = tok.strip_prefix('@').unwrap_or(&tok).to_string();
+        let prev = tok;
+        tok = tok.trim_matches(['"', '\'', '`', '(', ')', '[', ']', '<', '>']);
+        tok = tok.trim_end_matches(['.', ',', ';', ':', '!', '?']);
+        tok = tok.strip_prefix('@').unwrap_or(tok);
         if tok == prev {
-            return tok;
+            return tok.to_string();
         }
     }
 }

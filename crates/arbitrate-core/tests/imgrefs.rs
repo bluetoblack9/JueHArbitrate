@@ -41,7 +41,9 @@ fn at_prefix_and_wrappers() {
     // 嵌套包裹 + 尾标点 + @ 前缀，循环剥至稳定
     assert_eq!(detect(&format!("see (@{img}),")), vec![img.clone()]);
     assert_eq!(detect(&format!("`{img}`")), vec![img.clone()]);
-    assert_eq!(detect(&format!("[{img}]!")), vec![img]);
+    assert_eq!(detect(&format!("[{img}]!")), vec![img.clone()]);
+    let prefix = "@".repeat(64 * 1024);
+    assert_eq!(detect(&format!("({prefix}{img}),")), vec![img]);
 }
 
 #[test]
