@@ -23,14 +23,21 @@ pub fn is_sensitive(name: &str) -> bool {
         || SENSITIVE_SUBSTRINGS.iter().any(|s| up.contains(s))
 }
 
+fn keep_names(keep: &[&str]) -> HashSet<String> {
+    keep.iter()
+        .map(|k| k.trim().to_uppercase())
+        .filter(|k| !k.is_empty())
+        .collect()
+}
+
+fn keep_name(name: &str, keep: &HashSet<String>) -> bool {
+    keep.contains(&name.to_uppercase()) || !is_sensitive(name)
+}
+
 /// 移除敏感条目，保持原序、其余字节原样。keep 精确（大小写不敏感，无 substring/glob）
 /// 保留——模糊逃生舱会静默重泄漏邻居。无 '=' 或空名（"=value"）条目 drop。
 pub fn scrub(env: &[String], keep: &[&str]) -> Vec<String> {
-    let keep_set: HashSet<String> = keep
-        .iter()
-        .map(|k| k.trim().to_uppercase())
-        .filter(|k| !k.is_empty())
-        .collect();
+    let keep_set = keep_names(keep);
     let mut out = Vec::with_capacity(env.len());
     for e in env {
         let eq = match e.find('=') {
@@ -38,23 +45,31 @@ pub fn scrub(env: &[String], keep: &[&str]) -> Vec<String> {
             _ => continue, // 无 = 或空名
         };
         let name = &e[..eq];
-        if keep_set.contains(&name.to_uppercase()) {
+        if keep_name(name, &keep_set) {
             out.push(e.clone());
-            continue;
         }
-        if is_sensitive(name) {
-            continue;
-        }
-        out.push(e.clone());
     }
     out
 }
 
-/// scrub(进程 env, keep)——交给命令/代码非 arbitrate 控制的子进程的环境。
-/// 调用方需 ADD 变量应 append 到结果（cmd.Env last-wins，显式值总胜父环境）。
+/// Build a scrubbed environment for a child process, preserving environment order.
+/// Names are filtered before their values are converted. Entries with non-Unicode
+/// names or values are omitted because this API returns strings.
+///
+/// Call [std::process::Command::env_clear] before applying the returned name/value
+/// pairs, then apply explicit overrides.
 pub fn sanitized(keep: &[&str]) -> Vec<String> {
-    let env: Vec<String> = std::env::vars().map(|(k, v)| format!("{k}={v}")).collect();
-    scrub(&env, keep)
+    let keep_set = keep_names(keep);
+    std::env::vars_os()
+        .filter_map(|(name, value)| {
+            let name = name.to_str()?;
+            if name.is_empty() || name.contains('=') || !keep_name(name, &keep_set) {
+                return None;
+            }
+            let value = value.to_str()?;
+            Some(format!("{name}={value}"))
+        })
+        .collect()
 }
 
 /// Scrub 会丢弃的名称（绝不值），去重，**环境序**（上游注释 "sorted" 是漂移，D4-9）。

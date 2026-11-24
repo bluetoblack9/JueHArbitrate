@@ -2,6 +2,8 @@
 //! internal/pathop，Rust 自有重写）。Windows 算法经 stub 跨平台验证，绝不触
 //! 真实注册表/PATH（约束：测试注入替身）。%VAR% 不展开（上游注释漂移钉死）。
 
+use std::ffi::OsString;
+
 use arbitrate_core::pathop::{
     PathopError, ValueKind, WindowsBackend, clean_posix, clean_windows, ensure_in_path_windows,
     expand_env_with, is_in_user_path_windows, user_path_contains_with,
@@ -117,7 +119,7 @@ struct Stub {
     read_err: bool,
     write_err: bool,
     written: Vec<(String, ValueKind)>,
-    proc_path: String,
+    proc_path: Option<OsString>,
     proc_set: Vec<String>,
     env: Vec<(String, String)>,
     broadcasts: usize,
@@ -129,7 +131,7 @@ impl Stub {
             read_err: false,
             write_err: false,
             written: Vec::new(),
-            proc_path: String::new(),
+            proc_path: None,
             proc_set: Vec::new(),
             env: Vec::new(),
             broadcasts: 0,
@@ -154,12 +156,12 @@ impl WindowsBackend for Stub {
         self.written.push((value.to_string(), kind));
         Ok(())
     }
-    fn process_path(&self) -> String {
+    fn process_path(&self) -> Option<OsString> {
         self.proc_path.clone()
     }
     fn set_process_path(&mut self, value: &str) {
         self.proc_set.push(value.to_string());
-        self.proc_path = value.to_string();
+        self.proc_path = Some(value.into());
     }
     fn env(&self, name: &str) -> Option<String> {
         self.env
@@ -221,13 +223,13 @@ fn ensure_process_path_variants() {
     // 进程 PATH 含其他 → append
     let mut b = Stub::new();
     b.user_path = Some(("C:\\Tools".to_string(), ValueKind::Sz)); // already-present 分支
-    b.proc_path = "C:\\Other".to_string();
+    b.proc_path = Some("C:\\Other".into());
     ensure_in_path_windows("Tools", false, &mut b).unwrap();
     assert_eq!(b.proc_set, vec!["C:\\Other;C:\\Tools".to_string()]);
     // 进程 PATH 已含 → 不 set
     let mut b2 = Stub::new();
     b2.user_path = Some(("C:\\Tools".to_string(), ValueKind::Sz));
-    b2.proc_path = "C:\\Tools".to_string();
+    b2.proc_path = Some("C:\\Tools".into());
     ensure_in_path_windows("Tools", false, &mut b2).unwrap();
     assert!(b2.proc_set.is_empty());
 }
@@ -236,17 +238,69 @@ fn ensure_process_path_variants() {
 fn ensure_read_error_propagates() {
     let mut b = Stub::new();
     b.read_err = true;
-    let err = ensure_in_path_windows("Tools", false, &mut b).unwrap_err();
+    let err = ensure_in_path_windows("Tools", true, &mut b).unwrap_err();
     assert_eq!(err, PathopError::Backend("read fail".into()));
     assert!(b.written.is_empty());
+    assert!(b.proc_set.is_empty());
+    assert_eq!(b.broadcasts, 0);
 }
 
 #[test]
 fn ensure_write_error_propagates() {
     let mut b = Stub::new();
     b.write_err = true;
-    let err = ensure_in_path_windows("Tools", false, &mut b).unwrap_err();
+    let err = ensure_in_path_windows("Tools", true, &mut b).unwrap_err();
     assert_eq!(err, PathopError::Backend("write fail".into()));
+    assert!(b.written.is_empty());
+    assert!(b.proc_set.is_empty());
+    assert_eq!(b.broadcasts, 0);
+}
+
+#[test]
+fn ensure_rejects_unusable_process_path_before_mutation() {
+    for user_path in [None, Some(("C:\\Tools".to_string(), ValueKind::Sz))] {
+        let mut b = Stub::new();
+        b.user_path = user_path;
+        b.proc_path = Some("C:\\Unavailable\0Other".into());
+        let err = ensure_in_path_windows("Tools", true, &mut b).unwrap_err();
+        assert!(err.to_string().contains("process PATH"));
+        assert!(b.written.is_empty());
+        assert!(b.proc_set.is_empty());
+        assert_eq!(b.broadcasts, 0);
+    }
+}
+
+#[test]
+#[cfg(any(unix, windows))]
+fn ensure_rejects_non_unicode_process_path_before_mutation() {
+    #[cfg(unix)]
+    let invalid_path = {
+        use std::os::unix::ffi::OsStringExt;
+        OsString::from_vec(vec![0xff])
+    };
+    #[cfg(windows)]
+    let invalid_path = {
+        use std::os::windows::ffi::OsStringExt;
+        OsString::from_wide(&[0xd800])
+    };
+    let mut b = Stub::new();
+    b.proc_path = Some(invalid_path.clone());
+    let err = ensure_in_path_windows("Tools", true, &mut b).unwrap_err();
+    assert!(err.to_string().contains("non-Unicode"));
+    assert_eq!(b.proc_path, Some(invalid_path));
+    assert!(b.written.is_empty());
+    assert!(b.proc_set.is_empty());
+    assert_eq!(b.broadcasts, 0);
+}
+
+#[test]
+fn ensure_rejects_unrepresentable_directory_before_mutation() {
+    let mut b = Stub::new();
+    let err = ensure_in_path_windows("Tools;Extras", true, &mut b).unwrap_err();
+    assert!(err.to_string().contains("semicolon"));
+    assert!(b.written.is_empty());
+    assert!(b.proc_set.is_empty());
+    assert_eq!(b.broadcasts, 0);
 }
 
 #[test]

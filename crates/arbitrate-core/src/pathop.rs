@@ -5,7 +5,7 @@
 //! extern，零依赖禁 winreg/windows-sys crate；Windows target 编译检查 + Windows CI 首验）。
 //! 非 Windows 公开 API 逐字 no-op（shell rc 编辑超范围）。M3 仅剩 Windows 交互 PATH 提示。
 
-use std::fmt;
+use std::{ffi::OsString, fmt};
 
 /// pathop 错误。Backend = 系统调用/FFI 失败详情。
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -35,7 +35,8 @@ pub trait WindowsBackend {
     /// None = 值不存在（registry.ErrNotExist）。
     fn read_user_path(&self) -> Result<Option<(String, ValueKind)>, PathopError>;
     fn write_user_path(&mut self, value: &str, kind: ValueKind) -> Result<(), PathopError>;
-    fn process_path(&self) -> String;
+    /// Read the original process PATH, including non-Unicode values. None means unset.
+    fn process_path(&self) -> Option<OsString>;
     fn set_process_path(&mut self, value: &str);
     fn env(&self, name: &str) -> Option<String>;
     fn broadcast(&mut self);
@@ -284,17 +285,26 @@ pub fn user_path_contains_with(
 
 // ---- Windows 纯算法（可注入替身，跨平台测试）----
 
-fn ensure_process_path(abs_dir: &str, b: &mut dyn WindowsBackend) {
-    let proc_path = b.process_path();
-    if path_contains_dir_windows(&proc_path, abs_dir) {
-        return;
+fn process_path_update(
+    abs_dir: &str,
+    current: Option<OsString>,
+) -> Result<Option<String>, PathopError> {
+    let current = current
+        .unwrap_or_default()
+        .into_string()
+        .map_err(|_| PathopError::Backend("process PATH contains non-Unicode text".into()))?;
+    if current.contains('\0') {
+        return Err(PathopError::Backend("process PATH contains a NUL".into()));
     }
-    let new = if proc_path.is_empty() {
-        abs_dir.to_string()
+    if path_contains_dir_windows(&current, abs_dir) {
+        return Ok(None);
+    }
+    let new = if current.is_empty() {
+        abs_dir.to_owned()
     } else {
-        format!("{proc_path};{abs_dir}")
+        format!("{current};{abs_dir}")
     };
-    b.set_process_path(&new);
+    Ok(Some(new))
 }
 
 /// ensureInPATH 纯核心。返回 true = 新注册表条目已 append。
@@ -304,27 +314,34 @@ pub fn ensure_in_path_windows(
     b: &mut dyn WindowsBackend,
 ) -> Result<bool, PathopError> {
     let abs_dir = b.abs(dir)?;
+    if abs_dir.contains(';') {
+        return Err(PathopError::Backend(
+            "directory contains a semicolon and cannot be added as one PATH entry".into(),
+        ));
+    }
     let (current_path, val_type) = match b.read_user_path()? {
         Some(v) => v,
         None => (String::new(), ValueKind::ExpandSz), // ErrNotExist → "" + EXPAND_SZ
     };
-    if user_path_contains_with(&current_path, &abs_dir, |n| b.env(n).unwrap_or_default()) {
-        ensure_process_path(&abs_dir, b);
-        return Ok(false);
+    let process_update = process_path_update(&abs_dir, b.process_path())?;
+    let added = !user_path_contains_with(&current_path, &abs_dir, |n| b.env(n).unwrap_or_default());
+    if added {
+        let new_path = if current_path.is_empty() {
+            abs_dir
+        } else if current_path.ends_with(';') {
+            format!("{current_path}{abs_dir}")
+        } else {
+            format!("{current_path};{abs_dir}")
+        };
+        b.write_user_path(&new_path, val_type)?;
     }
-    let new_path = if current_path.is_empty() {
-        abs_dir.clone()
-    } else if current_path.ends_with(';') {
-        format!("{current_path}{abs_dir}")
-    } else {
-        format!("{current_path};{abs_dir}")
-    };
-    b.write_user_path(&new_path, val_type)?;
-    ensure_process_path(&abs_dir, b);
-    if with_broadcast {
+    if let Some(path) = process_update {
+        b.set_process_path(&path);
+    }
+    if added && with_broadcast {
         b.broadcast();
     }
-    Ok(true)
+    Ok(added)
 }
 
 /// IsInUserPATH 纯核心。
@@ -342,16 +359,53 @@ pub fn is_in_user_path_windows(dir: &str, b: &dyn WindowsBackend) -> Result<bool
 // ---- 真实 Windows 后端（cfg(windows)，std-only FFI，D4-10）----
 // mac/linux 门禁不编译此段；正确性靠 Windows CI 首验。测试用替身，绝不触真实注册表/PATH。
 
+#[cfg(any(windows, test))]
+const REG_SZ: u32 = 1;
+#[cfg(any(windows, test))]
+const REG_EXPAND_SZ: u32 = 2;
+
+#[cfg(any(windows, test))]
+fn decode_registry_path(typ: u32, buf: &[u8], cb: u32) -> Result<(String, ValueKind), PathopError> {
+    let kind = match typ {
+        REG_SZ => ValueKind::Sz,
+        REG_EXPAND_SZ => ValueKind::ExpandSz,
+        _ => {
+            return Err(PathopError::Backend(format!(
+                "registry PATH type {typ} is not a string"
+            )));
+        }
+    };
+    let data = buf
+        .get(..cb as usize)
+        .filter(|data| data.len().is_multiple_of(2))
+        .ok_or_else(|| PathopError::Backend("registry PATH has an invalid byte count".into()))?;
+    let units: Vec<u16> = data
+        .chunks_exact(2)
+        .map(|c| u16::from_le_bytes([c[0], c[1]]))
+        .collect();
+    // RegQueryValueExW can return a string without its terminating NUL.
+    let units = units.strip_suffix(&[0]).unwrap_or(&units);
+    if units.contains(&0) {
+        return Err(PathopError::Backend(
+            "registry PATH contains an interior NUL".into(),
+        ));
+    }
+    let s = String::from_utf16(units)
+        .map_err(|_| PathopError::Backend("registry PATH contains invalid UTF-16".into()))?;
+    Ok((s, kind))
+}
+
 #[cfg(windows)]
 mod win {
-    use super::{PathopError, ValueKind, WindowsBackend, clean_windows};
+    use super::{
+        OsString, PathopError, REG_EXPAND_SZ, REG_SZ, ValueKind, WindowsBackend, clean_windows,
+        decode_registry_path,
+    };
 
     // Windows headers cast this predefined handle through signed LONG before pointer width.
     const HKEY_CURRENT_USER: isize = 0x80000001u32 as i32 as isize;
     const KEY_QUERY_VALUE: u32 = 0x0001;
     const KEY_SET_VALUE: u32 = 0x0002;
-    const REG_SZ: u32 = 1;
-    const REG_EXPAND_SZ: u32 = 2;
     const ERROR_FILE_NOT_FOUND: i32 = 2;
     const HWND_BROADCAST: isize = 0xFFFF;
     const WM_SETTINGCHANGE: u32 = 0x001A;
@@ -420,7 +474,7 @@ mod win {
             return Err(PathopError::Backend(format!("RegOpenKeyEx: {rc}")));
         }
         let name = to_wide("Path");
-        let mut typ: u32 = 0;
+        let mut size_type: u32 = 0;
         let mut cb: u32 = 0;
         // SAFETY: hkey 已由 RegOpenKeyExW 成功打开；name 合法；data=null 仅查询尺寸，cb/typ 为合法 out。
         let rc = unsafe {
@@ -428,7 +482,7 @@ mod win {
                 hkey,
                 name.as_ptr(),
                 std::ptr::null_mut(),
-                &mut typ,
+                &mut size_type,
                 std::ptr::null_mut(),
                 &mut cb,
             )
@@ -443,19 +497,22 @@ mod win {
             unsafe { RegCloseKey(hkey) };
             return Err(PathopError::Backend(format!("RegQueryValueEx size: {rc}")));
         }
-        if typ != REG_SZ && typ != REG_EXPAND_SZ {
+        if size_type != REG_SZ && size_type != REG_EXPAND_SZ {
             // SAFETY: hkey was successfully opened above and has not been closed.
             unsafe { RegCloseKey(hkey) };
-            return Err(PathopError::Backend(format!("Path type {typ} not string")));
+            return Err(PathopError::Backend(format!(
+                "registry PATH type {size_type} is not a string"
+            )));
         }
         let mut buf = vec![0u8; cb as usize]; // 尺寸由首次查询返回，buf 容量 = cb
+        let mut read_type = 0;
         // SAFETY: buf.as_mut_ptr() 可写 cb 字节（vec 容量 cb）；hkey 仍有效；cb 为合法 in/out。
         let rc = unsafe {
             RegQueryValueExW(
                 hkey,
                 name.as_ptr(),
                 std::ptr::null_mut(),
-                &mut typ,
+                &mut read_type,
                 buf.as_mut_ptr(),
                 &mut cb,
             )
@@ -465,19 +522,7 @@ mod win {
         if rc != 0 {
             return Err(PathopError::Backend(format!("RegQueryValueEx read: {rc}")));
         }
-        let units: Vec<u16> = buf[..cb as usize]
-            .chunks_exact(2)
-            .map(|c| u16::from_le_bytes([c[0], c[1]]))
-            .collect();
-        let s = String::from_utf16_lossy(&units)
-            .trim_end_matches('\0')
-            .to_string();
-        let kind = if typ == REG_EXPAND_SZ {
-            ValueKind::ExpandSz
-        } else {
-            ValueKind::Sz
-        };
-        Ok(Some((s, kind)))
+        decode_registry_path(read_type, &buf, cb).map(Some)
     }
 
     unsafe fn write_path(value: &str, kind: ValueKind) -> Result<(), PathopError> {
@@ -554,8 +599,8 @@ mod win {
             // SAFETY: write_path owns the encoded value and its registry handle.
             unsafe { write_path(value, kind) }
         }
-        fn process_path(&self) -> String {
-            std::env::var("PATH").unwrap_or_default()
+        fn process_path(&self) -> Option<OsString> {
+            std::env::var_os("PATH")
         }
         fn set_process_path(&mut self, value: &str) {
             // SAFETY: this backend exists only on Windows, where set_var is thread-safe.
@@ -601,4 +646,49 @@ pub fn ensure_in_path(dir: &str) -> Result<bool, PathopError> {
 #[cfg(windows)]
 pub fn ensure_in_path_with_broadcast(dir: &str) -> Result<bool, PathopError> {
     ensure_in_path_windows(dir, true, &mut win::RealBackend)
+}
+
+#[cfg(test)]
+mod registry_tests {
+    use super::{ValueKind, decode_registry_path};
+
+    fn bytes(units: &[u16]) -> Vec<u8> {
+        units.iter().flat_map(|unit| unit.to_le_bytes()).collect()
+    }
+
+    #[test]
+    fn registry_path_uses_final_type_and_reported_bytes() {
+        let data = bytes(&[0x754c, 0xd83d, 0xde00, 0, 0xd800]);
+        assert_eq!(
+            decode_registry_path(1, &data, 8).unwrap(),
+            ("界😀".to_string(), ValueKind::Sz)
+        );
+        assert_eq!(
+            decode_registry_path(2, &data, 6).unwrap(),
+            ("界😀".to_string(), ValueKind::ExpandSz)
+        );
+        assert_eq!(
+            decode_registry_path(1, &[], 0).unwrap(),
+            (String::new(), ValueKind::Sz)
+        );
+        assert!(decode_registry_path(3, &data, 8).is_err());
+    }
+
+    #[test]
+    fn registry_path_rejects_impossible_byte_counts() {
+        let data = bytes(&[0x0061, 0]);
+        assert!(decode_registry_path(1, &data, 3).is_err());
+        assert!(decode_registry_path(1, &data, 6).is_err());
+    }
+
+    #[test]
+    fn registry_path_rejects_unrepresentable_text() {
+        for units in [&[0xd800, 0][..], &[0x0061, 0, 0x0062], &[0x0061, 0, 0]] {
+            let data = bytes(units);
+            assert!(
+                decode_registry_path(1, &data, data.len() as u32).is_err(),
+                "accepted {units:?}"
+            );
+        }
+    }
 }

@@ -167,13 +167,13 @@ fn no_mutate_input() {
 #[test]
 fn withheld_env_order_not_sorted() {
     // 上游注释 "sorted" 是陈旧漂移：实际环境序（D4-9 钉死）
-    let env: Vec<String> = ["B=2", "SECRET_A=x", "A=1", "TOKEN_B=y", "SECRET_A=z"]
+    let env: Vec<String> = ["B=2", "TOKEN_B=x", "A=1", "SECRET_A=y", "TOKEN_B=z"]
         .iter()
         .map(|s| s.to_string())
         .collect();
     assert_eq!(
         withheld(&env, &[]),
-        vec!["SECRET_A".to_string(), "TOKEN_B".to_string()]
+        vec!["TOKEN_B".to_string(), "SECRET_A".to_string()]
     );
 }
 
@@ -189,18 +189,54 @@ fn withheld_dedup_names_never_values() {
 }
 
 #[test]
-fn sanitized_invariants() {
-    // 薄包装读真实 env：只断言普适不变量，不录/不依赖具体凭据（D4-9）
-    let out = sanitized(&[]);
-    let input: Vec<String> = std::env::vars().map(|(k, v)| format!("{k}={v}")).collect();
-    for e in &out {
-        let eq = e.find('=').expect("sanitized 条目必含 =");
-        assert!(eq > 0, "空名不得保留");
-        assert!(!is_sensitive(&e[..eq]), "敏感名不得泄漏: {}", &e[..eq]);
+#[cfg(any(unix, windows))]
+fn sanitized_handles_non_unicode_environment() {
+    use std::ffi::OsString;
+    use std::process::Command;
+
+    const CHILD: &str = "ARBITRATE_CHILDENV_TEST";
+    if std::env::var_os(CHILD).is_some() {
+        let out = sanitized(&["kept_token", "KEPT_BAD_TOKEN"]);
+        let mut entries: Vec<_> = out
+            .iter()
+            .filter(|entry| entry.starts_with("FIXTURE_") || entry.starts_with("KEPT_"))
+            .map(String::as_str)
+            .collect();
+        entries.sort_unstable();
+        assert_eq!(entries, ["FIXTURE_PLAIN=a=b", "KEPT_TOKEN=synthetic"]);
+        return;
     }
-    // 顺序保持：out 是 input 的子序列
-    let mut it = input.iter();
-    for e in &out {
-        assert!(it.any(|i| i == e), "sanitized 必须保持 env 序");
-    }
+
+    #[cfg(unix)]
+    let non_unicode = {
+        use std::os::unix::ffi::OsStringExt;
+        OsString::from_vec(vec![0xff])
+    };
+    #[cfg(windows)]
+    let non_unicode = {
+        use std::os::windows::ffi::OsStringExt;
+        OsString::from_wide(&[0xd800])
+    };
+    let mut invalid_name = OsString::from("FIXTURE_");
+    invalid_name.push(&non_unicode);
+
+    let result = Command::new(std::env::current_exe().unwrap())
+        .args(["--exact", "sanitized_handles_non_unicode_environment"])
+        .env_clear()
+        .env(CHILD, "1")
+        .env("FIXTURE_PLAIN", "a=b")
+        .env("FIXTURE_TOKEN", &non_unicode)
+        .env("FIXTURE_SECRET", "synthetic")
+        .env("FIXTURE_OTHER", &non_unicode)
+        .env("KEPT_TOKEN", "synthetic")
+        .env("KEPT_BAD_TOKEN", &non_unicode)
+        .env(invalid_name, "synthetic")
+        .output()
+        .unwrap();
+    assert!(
+        result.status.success(),
+        "{}{}",
+        String::from_utf8_lossy(&result.stdout),
+        String::from_utf8_lossy(&result.stderr)
+    );
 }

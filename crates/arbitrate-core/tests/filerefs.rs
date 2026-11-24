@@ -5,16 +5,16 @@
 use arbitrate_core::filerefs::{Ref, detect, detect_refs, detect_refs_with};
 
 mod common;
-use common::TempRoot;
+#[path = "common/reference_fixture.rs"]
+mod reference_fixture;
+use reference_fixture::reference_test;
 
-fn write_doc(root: &TempRoot, name: &str) -> String {
-    let p = root.0.join(name);
-    std::fs::write(&p, b"not-really-a-document").unwrap();
-    p.to_string_lossy().into_owned()
+fn write_doc(name: &str) -> String {
+    std::fs::write(name, b"not-really-a-document").unwrap();
+    name.to_owned()
 }
 
-#[test]
-fn stat_gate_no_false_positive() {
+reference_test!(stat_gate_no_false_positive, {
     for text in [
         "see https://example.com/report.pdf for details",
         r#"if strings.HasSuffix(name, ".pdf") { parse(name) }"#,
@@ -25,59 +25,44 @@ fn stat_gate_no_false_positive() {
             "non-existent must not detect: {text}"
         );
     }
-}
+});
 
-#[test]
-fn real_doc() {
-    let root = TempRoot::new();
-    let doc = write_doc(&root, "report.pdf");
+reference_test!(real_doc, {
+    let doc = write_doc("report.pdf");
     assert_eq!(detect(&format!("summarize {doc} please")), vec![doc]);
-}
+});
 
-#[test]
-fn at_prefix_and_punctuation() {
-    let root = TempRoot::new();
-    let doc = write_doc(&root, "contract.docx");
+reference_test!(at_prefix_and_punctuation, {
+    let doc = write_doc("contract.docx");
     assert_eq!(detect(&format!("look at (@{doc}),")), vec![doc.clone()]);
     let prefix = "@".repeat(100_000);
     assert_eq!(detect(&format!("look at ({prefix}{doc}),")), vec![doc]);
-}
+});
 
-#[test]
-fn dedup() {
-    let root = TempRoot::new();
-    let doc = write_doc(&root, "a.pdf");
+reference_test!(dedup, {
+    let doc = write_doc("a.pdf");
     assert_eq!(detect(&format!("{doc} and again {doc}")), vec![doc]);
-}
+});
 
-#[test]
-fn all_exts_case_insensitive() {
-    let root = TempRoot::new();
+reference_test!(all_exts_case_insensitive, {
     for name in ["a.pdf", "b.doc", "c.docx", "d.ppt", "e.pptx", "F.PDF"] {
-        let doc = write_doc(&root, name);
+        let doc = write_doc(name);
         assert_eq!(detect(&format!("read {doc}")), vec![doc], "ext {name}");
     }
-}
+});
 
-#[test]
-fn directory_with_doc_ext_not_ref() {
-    let root = TempRoot::new();
-    let dir = root.0.join("fake.pdf");
-    std::fs::create_dir(&dir).unwrap();
-    assert!(detect(&format!("open {}", dir.to_string_lossy())).is_empty());
-}
+reference_test!(directory_with_doc_ext_not_ref, {
+    std::fs::create_dir("fake.pdf").unwrap();
+    assert!(detect("open fake.pdf").is_empty());
+});
 
-#[test]
-fn image_ext_not_doc_ref() {
-    let root = TempRoot::new();
-    let img = write_doc(&root, "shot.png");
+reference_test!(image_ext_not_doc_ref, {
+    let img = write_doc("shot.png");
     assert!(detect(&format!("look at {img}")).is_empty()); // 家族分离
-}
+});
 
-#[test]
-fn rich_prefix() {
-    let root = TempRoot::new();
-    let doc = write_doc(&root, "report.pdf");
+reference_test!(rich_prefix, {
+    let doc = write_doc("report.pdf");
     // plain → rich=false
     assert_eq!(
         detect_refs(&format!("read {doc}")),
@@ -103,8 +88,8 @@ fn rich_prefix() {
         }]
     );
     // @rich: 不存在路径 → stat 门拒绝
-    assert!(detect_refs("read @rich:/nope/missing.pdf").is_empty());
-}
+    assert!(detect_refs("read @rich:missing.pdf").is_empty());
+});
 
 #[test]
 fn rich_literal_name_fallback() {
@@ -130,10 +115,8 @@ fn rich_literal_name_fallback() {
     );
 }
 
-#[test]
-fn first_occurrence_wins() {
-    let root = TempRoot::new();
-    let doc = write_doc(&root, "report.pdf");
+reference_test!(first_occurrence_wins, {
+    let doc = write_doc("report.pdf");
     // plain-first → rich=false
     assert_eq!(
         detect_refs(&format!("{doc} and @rich:{doc}")),
@@ -150,13 +133,11 @@ fn first_occurrence_wins() {
             rich: true
         }]
     );
-}
+});
 
-#[test]
-fn detect_is_projection_of_detect_refs() {
-    let root = TempRoot::new();
-    let a = write_doc(&root, "a.pdf");
-    let b = write_doc(&root, "b.docx");
+reference_test!(detect_is_projection_of_detect_refs, {
+    let a = write_doc("a.pdf");
+    let b = write_doc("b.docx");
     let text = format!("first {a} then @rich:{b} then {a}");
     let refs = detect_refs(&text);
     let paths = detect(&text);
@@ -167,4 +148,4 @@ fn detect_is_projection_of_detect_refs() {
     }
     assert!(!refs[0].rich);
     assert!(refs[1].rich);
-}
+});

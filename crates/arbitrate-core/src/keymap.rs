@@ -211,17 +211,20 @@ use std::collections::HashSet;
 use std::io::Write;
 use std::path::Path;
 
+const TOML_WHITESPACE: [char; 2] = [' ', '\t'];
+
 /// 手写 TOML 子集解析（禁 BurntSushi crate，D4-13）。仅 [bindings] 段收集；
 /// 其余段语法校验但忽略。值必须字符串（basic/literal）；非字符串值拒绝
-/// （文档化天花板：keybindings 只需字符串）。重复键/段拒绝。BTreeMap 排序迭代。
+/// （文档化天花板：keybindings 只需字符串）。仅平面键与段名；重复键/段拒绝。
 pub fn parse_toml_bindings(input: &str) -> Result<BTreeMap<String, String>, String> {
     let mut bindings = BTreeMap::new();
-    let mut seen_sections: HashSet<String> = HashSet::new();
-    let mut seen_keys: HashSet<(String, String)> = HashSet::new();
+    let mut seen_sections = HashSet::new();
+    let mut root_keys = HashSet::new();
+    let mut section_keys = HashSet::new();
     let mut current = String::new();
     for (idx, raw) in input.lines().enumerate() {
         let lineno = idx + 1;
-        let line = strip_comment(raw).trim();
+        let line = strip_comment(raw, lineno)?.trim_matches(TOML_WHITESPACE);
         if line.is_empty() {
             continue;
         }
@@ -229,36 +232,35 @@ pub fn parse_toml_bindings(input: &str) -> Result<BTreeMap<String, String>, Stri
             let inner = rest
                 .strip_suffix(']')
                 .ok_or_else(|| format!("line {lineno}: unterminated section header"))?
-                .trim();
-            // bare 或 quoted 段名（D4-13 承诺 quoted；评审 P2-5）
-            let name = if inner.starts_with('"') || inner.starts_with('\'') {
-                let (n, remainder) = parse_key(inner, lineno)?;
-                if !remainder.trim().is_empty() {
-                    return Err(format!(
-                        "line {lineno}: trailing content after section name"
-                    ));
-                }
-                n
-            } else {
-                if !inner
-                    .chars()
-                    .all(|c| c.is_ascii_alphanumeric() || c == '_' || c == '-' || c == '.')
-                {
-                    return Err(format!("line {lineno}: invalid section name"));
-                }
-                inner.to_string()
-            };
+                .trim_matches(TOML_WHITESPACE);
+            let (name, remainder) = parse_key(inner, lineno)?;
+            if !remainder.trim_matches(TOML_WHITESPACE).is_empty() {
+                return Err(format!(
+                    "line {lineno}: trailing content after section name"
+                ));
+            }
             if name.is_empty() {
                 return Err(format!("line {lineno}: empty section name"));
+            }
+            if root_keys.contains(&name) {
+                return Err(format!(
+                    "line {lineno}: section [{name}] conflicts with root key"
+                ));
             }
             if !seen_sections.insert(name.clone()) {
                 return Err(format!("line {lineno}: duplicate section [{name}]"));
             }
             current = name;
+            section_keys.clear();
             continue;
         }
         let (key, value) = split_key_value(line, lineno)?;
-        if !seen_keys.insert((current.clone(), key.clone())) {
+        let keys = if current.is_empty() {
+            &mut root_keys
+        } else {
+            &mut section_keys
+        };
+        if !keys.insert(key.clone()) {
             return Err(format!("line {lineno}: duplicate key {key}"));
         }
         if current == "bindings" {
@@ -269,7 +271,7 @@ pub fn parse_toml_bindings(input: &str) -> Result<BTreeMap<String, String>, Stri
 }
 
 /// 去注释（# 仅在字符串外）。basic 串处理 \\ 转义跳过，literal 串无转义。
-fn strip_comment(line: &str) -> &str {
+fn strip_comment(line: &str, lineno: usize) -> Result<&str, String> {
     let b = line.as_bytes();
     let (mut in_basic, mut in_literal) = (false, false);
     let mut i = 0;
@@ -291,22 +293,31 @@ fn strip_comment(line: &str) -> &str {
             match c {
                 b'"' => in_basic = true,
                 b'\'' => in_literal = true,
-                b'#' => return &line[..i],
+                b'#' => {
+                    if line[i + 1..].chars().any(forbidden_raw_control) {
+                        return Err(format!("line {lineno}: forbidden raw control in comment"));
+                    }
+                    return Ok(&line[..i]);
+                }
                 _ => {}
             }
         }
         i += 1;
     }
-    line
+    Ok(line)
+}
+
+fn forbidden_raw_control(ch: char) -> bool {
+    ch.is_ascii_control() && ch != '\t'
 }
 
 fn split_key_value(line: &str, lineno: usize) -> Result<(String, String), String> {
     let (key, rest) = parse_key(line, lineno)?;
     let rest = rest
-        .trim_start()
+        .trim_start_matches(TOML_WHITESPACE)
         .strip_prefix('=')
         .ok_or_else(|| format!("line {lineno}: expected '=' after key"))?
-        .trim_start();
+        .trim_start_matches(TOML_WHITESPACE);
     let value = parse_string_value(rest, lineno)?;
     Ok((key, value))
 }
@@ -335,7 +346,7 @@ fn parse_string_value(s: &str, lineno: usize) -> Result<String, String> {
     } else {
         return Err(format!("line {lineno}: only string values are supported"));
     };
-    if !rest.trim().is_empty() {
+    if !rest.trim_matches(TOML_WHITESPACE).is_empty() {
         return Err(format!(
             "line {lineno}: trailing content after string value"
         ));
@@ -410,7 +421,7 @@ fn scan_basic(s: &str, lineno: usize) -> Result<(String, &str), String> {
             }
             _ => {
                 let ch = s[i..].chars().next().unwrap();
-                if ch.is_ascii_control() && ch != '\t' {
+                if forbidden_raw_control(ch) {
                     return Err(format!(
                         "line {lineno}: forbidden raw control in basic string"
                     ));
@@ -428,7 +439,7 @@ fn scan_literal(s: &str, lineno: usize) -> Result<(String, &str), String> {
     match s.find('\'') {
         Some(i) => {
             let value = &s[..i];
-            if value.chars().any(|ch| ch.is_ascii_control() && ch != '\t') {
+            if value.chars().any(forbidden_raw_control) {
                 return Err(format!(
                     "line {lineno}: forbidden raw control in literal string"
                 ));

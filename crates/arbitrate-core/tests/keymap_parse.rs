@@ -2,7 +2,9 @@
 //! 手写 TOML 子集（禁 BurntSushi，D4-13）；警告形状逐字 + 品牌适配（D4-4/D4-14）。
 //! swap 硬化为 arbitrate 有意偏差（D4-14）。虚构键值，不触真实 ~/.arbitrate。
 
-use arbitrate_core::keymap::{Action, KeyMap, check, load, load_bytes, parse_toml_bindings};
+use arbitrate_core::keymap::{
+    Action, KeyMap, all_actions, check, load, load_bytes, parse_toml_bindings,
+};
 
 mod common;
 use common::TempRoot;
@@ -209,6 +211,66 @@ fn other_sections_ignored() {
     );
     assert!(ok);
     assert!(w.is_empty());
+    assert_eq!(km.resolve("ctrl+x"), Action::Submit);
+}
+
+fn assert_syntax_defaults(prefix: &str) {
+    let input = format!("{prefix}\n[bindings]\nsubmit = \"ctrl+x\"\n");
+    let (km, ok, warning) = warn_string(input.as_bytes(), "f.toml");
+    assert!(!ok, "accepted malformed input: {input:?}");
+    assert!(warning.starts_with("keybindings: toml syntax error in f.toml: "));
+    assert!(warning.ends_with(" (using defaults)\n"));
+    for info in all_actions() {
+        assert_eq!(km.key_for(info.action), info.default_key);
+        assert_eq!(km.source_for(info.action), "default");
+        assert_eq!(km.resolve(info.default_key), info.action);
+    }
+    assert_eq!(km.resolve("ctrl+x"), Action::None);
+}
+
+#[test]
+fn bare_dotted_sections_rejected() {
+    for header in ["[.]", "[a..b]", "[a.b]"] {
+        assert_syntax_defaults(header);
+    }
+}
+
+#[test]
+fn root_scalar_cannot_become_table() {
+    assert_syntax_defaults("bindings = 'root'");
+    assert_syntax_defaults("'other' = 'root'\n[other]");
+}
+
+#[test]
+fn non_toml_syntax_whitespace_rejected() {
+    for line in [
+        "\u{a0}[other]",
+        "[other\u{a0}]",
+        "root\u{a0}= 'value'",
+        "root =\u{a0}'value'",
+        "root = 'value'\u{a0}",
+        "\u{000b}",
+        "\r\r",
+    ] {
+        assert_syntax_defaults(line);
+    }
+}
+
+#[test]
+fn forbidden_comment_controls_rejected() {
+    for line in ["# comment\0", "[other] # comment\u{7f}", "# comment\rmore"] {
+        assert_syntax_defaults(line);
+    }
+}
+
+#[test]
+fn quoted_names_and_comments_accept_toml_whitespace() {
+    let data = "\t# comment\t界\r\n[ 'other.#table' ]\t# comment\r\n\
+                name = 'ignore # kept in string'\r\n[ \"bindings\" ] \r\n\
+                \t'submit'\t=\t\"ctrl+\\u0078\"\t# comment\r\n";
+    let (km, ok, warning) = warn_string(data.as_bytes(), "f.toml");
+    assert!(ok, "{warning}");
+    assert!(warning.is_empty());
     assert_eq!(km.resolve("ctrl+x"), Action::Submit);
 }
 
