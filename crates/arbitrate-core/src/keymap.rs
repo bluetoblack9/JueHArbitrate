@@ -410,6 +410,11 @@ fn scan_basic(s: &str, lineno: usize) -> Result<(String, &str), String> {
             }
             _ => {
                 let ch = s[i..].chars().next().unwrap();
+                if ch.is_ascii_control() && ch != '\t' {
+                    return Err(format!(
+                        "line {lineno}: forbidden raw control in basic string"
+                    ));
+                }
                 out.push(ch);
                 i += ch.len_utf8();
             }
@@ -421,7 +426,15 @@ fn scan_basic(s: &str, lineno: usize) -> Result<(String, &str), String> {
 /// literal 串：无转义，到首个 ' 止。
 fn scan_literal(s: &str, lineno: usize) -> Result<(String, &str), String> {
     match s.find('\'') {
-        Some(i) => Ok((s[..i].to_string(), &s[i + 1..])),
+        Some(i) => {
+            let value = &s[..i];
+            if value.chars().any(|ch| ch.is_ascii_control() && ch != '\t') {
+                return Err(format!(
+                    "line {lineno}: forbidden raw control in literal string"
+                ));
+            }
+            Ok((value.to_string(), &s[i + 1..]))
+        }
         None => Err(format!("line {lineno}: unterminated literal string")),
     }
 }

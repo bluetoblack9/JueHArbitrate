@@ -2,7 +2,7 @@
 //! 手写 TOML 子集（禁 BurntSushi，D4-13）；警告形状逐字 + 品牌适配（D4-4/D4-14）。
 //! swap 硬化为 arbitrate 有意偏差（D4-14）。虚构键值，不触真实 ~/.arbitrate。
 
-use arbitrate_core::keymap::{Action, KeyMap, check, load, load_bytes};
+use arbitrate_core::keymap::{Action, KeyMap, check, load, load_bytes, parse_toml_bindings};
 
 mod common;
 use common::TempRoot;
@@ -28,23 +28,59 @@ fn missing_file_defaults() {
 fn syntax_error_rejects() {
     let (km, ok, w) = warn_string(b"[bindings\nsubmit = \"x\"", "f.toml");
     assert!(!ok);
-    assert!(w.contains("toml syntax error"), "{w}");
-    assert!(w.contains("(using defaults)"));
+    assert_eq!(
+        w,
+        "keybindings: toml syntax error in f.toml: line 1: unterminated section header (using defaults)\n"
+    );
     assert_eq!(km.resolve("enter"), Action::Submit); // 全回退默认
 
     // D4-13 excludes dotted-key syntax, even when the value is a valid string.
     let (km, ok, w) = warn_string(b"[bindings]\nsubmit.foo = \"ctrl+x\"\n", "f.toml");
     assert!(!ok);
-    assert!(w.contains("toml syntax error"), "{w}");
+    assert_eq!(
+        w,
+        "keybindings: toml syntax error in f.toml: line 2: expected '=' after key (using defaults)\n"
+    );
     assert_eq!(km.resolve("enter"), Action::Submit);
+
+    for quote in ['"', '\''] {
+        for control in ['\0', '\u{007f}'] {
+            let input = format!("[bindings]\nsubmit = {quote}ctrl+{control}x{quote}\n");
+            let (km, ok, w) = warn_string(input.as_bytes(), "f.toml");
+            assert!(!ok, "accepted forbidden raw control: {input:?}");
+            let style = if quote == '"' { "basic" } else { "literal" };
+            assert_eq!(
+                w,
+                format!(
+                    "keybindings: toml syntax error in f.toml: line 2: forbidden raw control in {style} string (using defaults)\n"
+                )
+            );
+            assert_eq!(km.key_for(Action::Submit), "enter");
+            assert_eq!(km.resolve("enter"), Action::Submit);
+            assert_eq!(km.resolve(&format!("ctrl+{control}x")), Action::None);
+        }
+    }
+
+    // Raw tabs and Unicode remain valid; controls decoded from escapes are allowed.
+    let parsed = parse_toml_bindings(
+        "[bindings]\nsubmit = \"a\t界\\b\\f\\n\\r\\t\\\"\\\\\\u0000\\U0000007F\\u754C\\U0001F600\"\nsteer = 'a\t界'\n",
+    )
+    .unwrap();
+    assert_eq!(
+        parsed["submit"],
+        "a\t界\u{0008}\u{000c}\n\r\t\"\\\0\u{007f}界😀"
+    );
+    assert_eq!(parsed["steer"], "a\t界");
 }
 
 #[test]
 fn unknown_action_soft() {
     let (km, ok, w) = warn_string(b"[bindings]\nsubmmit = \"ctrl+x\"\n", "f.toml");
     assert!(ok); // 软错误：丢该行，其余仍应用
-    assert!(w.contains("unknown action \"submmit\""), "{w}");
-    assert!(w.contains("available: submit, steer"));
+    assert_eq!(
+        w,
+        "keybindings: unknown action \"submmit\" in f.toml (available: submit, steer, interrupt, cancel, cycle-mode, clear-screen, toggle-reasoning, toggle-help, history-prev, history-next)\n"
+    );
     assert_eq!(km.resolve("ctrl+x"), Action::None); // 未应用
 }
 
@@ -52,7 +88,10 @@ fn unknown_action_soft() {
 fn empty_value_soft() {
     let (km, ok, w) = warn_string(b"[bindings]\nsubmit = \"\"\n", "f.toml");
     assert!(ok);
-    assert!(w.contains("action \"submit\" has empty value"), "{w}");
+    assert_eq!(
+        w,
+        "keybindings: action \"submit\" has empty value in f.toml\n"
+    );
     assert_eq!(km.key_for(Action::Submit), "enter"); // 仍默认
 }
 
@@ -60,8 +99,10 @@ fn empty_value_soft() {
 fn reserved_key_soft() {
     let (km, ok, w) = warn_string(b"[bindings]\nclear-screen = \"tab\"\n", "f.toml");
     assert!(ok);
-    assert!(w.contains("reserved key \"tab\" cannot be rebound"), "{w}");
-    assert!(w.contains("clear-screen = \"tab\""));
+    assert_eq!(
+        w,
+        "keybindings: reserved key \"tab\" cannot be rebound (clear-screen = \"tab\" in f.toml)\n"
+    );
     assert_eq!(km.key_for(Action::ClearScreen), "ctrl+l");
 }
 
@@ -72,8 +113,10 @@ fn unrecognised_key_soft() {
         "f.toml",
     );
     assert!(ok);
-    assert!(w.contains("unrecognised key"), "{w}");
-    assert!(w.contains("arbitrate keys actions"), "品牌适配命令名");
+    assert_eq!(
+        w,
+        "keybindings: unrecognised key \"weird key with spaces\" for action \"submit\" in f.toml (see `arbitrate keys actions` for examples)\n"
+    );
     assert_eq!(km.key_for(Action::Submit), "enter");
 }
 
@@ -102,8 +145,10 @@ fn conflict_rejects_whole_file() {
         "f.toml",
     );
     assert!(!ok);
-    assert!(w.contains("bound to multiple actions"), "{w}");
-    assert!(w.contains("rejecting whole file"));
+    assert_eq!(
+        w,
+        "keybindings: key \"ctrl+x\" bound to multiple actions (submit, steer) in f.toml — rejecting whole file\n"
+    );
     assert_eq!(km.resolve("ctrl+x"), Action::None); // 全回退
     assert_eq!(km.key_for(Action::Submit), "enter");
 }
@@ -138,14 +183,22 @@ fn check_bad_lines() {
     let p = root.0.join("kb.toml");
     std::fs::write(&p, b"[bindings]\nsubmit = \"ctrl+x\"\nsteer = \"ctrl+x\"\n").unwrap();
     let lines = check(&p);
-    assert!(!lines.is_empty());
-    assert!(lines.iter().any(|l| l.contains("rejecting whole file")));
+    assert_eq!(
+        lines,
+        vec![format!(
+            "keybindings: key \"ctrl+x\" bound to multiple actions (submit, steer) in {} — rejecting whole file",
+            p.display()
+        )]
+    );
 }
 
 #[test]
 fn inline_display_path() {
     let (_, _, w) = warn_string(b"[bindings]\nsubmmit = \"ctrl+x\"\n", "");
-    assert!(w.contains("<inline>"), "{w}");
+    assert_eq!(
+        w,
+        "keybindings: unknown action \"submmit\" in <inline> (available: submit, steer, interrupt, cancel, cycle-mode, clear-screen, toggle-reasoning, toggle-help, history-prev, history-next)\n"
+    );
 }
 
 #[test]
@@ -163,7 +216,10 @@ fn other_sections_ignored() {
 fn duplicate_key_rejects() {
     let (_, ok, w) = warn_string(b"[bindings]\nsubmit = \"a\"\nsubmit = \"b\"\n", "f.toml");
     assert!(!ok);
-    assert!(w.contains("toml syntax error"), "{w}");
+    assert_eq!(
+        w,
+        "keybindings: toml syntax error in f.toml: line 3: duplicate key submit (using defaults)\n"
+    );
 }
 
 #[test]
@@ -181,11 +237,14 @@ fn warning_order_sorted_actions() {
         "f.toml",
     );
     assert!(ok);
-    let lines: Vec<&str> = w.lines().collect();
-    assert_eq!(lines.len(), 3, "{w}");
-    assert!(lines[0].contains("\"cancel\""), "{}", lines[0]);
-    assert!(lines[1].contains("\"steer\""), "{}", lines[1]);
-    assert!(lines[2].contains("submit = \"tab\""), "{}", lines[2]);
+    assert_eq!(
+        w,
+        concat!(
+            "keybindings: action \"cancel\" has empty value in f.toml\n",
+            "keybindings: unrecognised key \"bad key\" for action \"steer\" in f.toml (see `arbitrate keys actions` for examples)\n",
+            "keybindings: reserved key \"tab\" cannot be rebound (submit = \"tab\" in f.toml)\n",
+        )
+    );
     assert_eq!(km.key_for(Action::Submit), "enter"); // 全软丢，默认保留
 }
 
@@ -195,8 +254,10 @@ fn rebind_onto_default_conflict() {
     // submit→alt+enter 与 steer 默认 alt+enter 同键；查终表（默认+覆盖）拒全文件。
     let (km, ok, w) = warn_string(b"[bindings]\nsubmit = \"alt+enter\"\n", "f.toml");
     assert!(!ok);
-    assert!(w.contains("bound to multiple actions"), "{w}");
-    assert!(w.contains("rejecting whole file"));
+    assert_eq!(
+        w,
+        "keybindings: key \"alt+enter\" bound to multiple actions (submit, steer) in f.toml — rejecting whole file\n"
+    );
     assert_eq!(km.key_for(Action::Submit), "enter"); // 全回退默认
     assert_eq!(km.resolve("alt+enter"), Action::Steer); // 默认反查未被覆盖
 }
@@ -206,7 +267,10 @@ fn illegal_multibyte_escape() {
     // 评审 P2-5：\u 后非 ASCII hex（界界）→ 字节级先验拒绝，不 panic（UTF-8 中间切片）。
     let (km, ok, w) = warn_string("[bindings]\nsubmit = \"\\u界界\"\n".as_bytes(), "f.toml");
     assert!(!ok);
-    assert!(w.contains("toml syntax error"), "{w}");
+    assert_eq!(
+        w,
+        "keybindings: toml syntax error in f.toml: line 2: bad unicode escape (using defaults)\n"
+    );
     assert_eq!(km.resolve("enter"), Action::Submit); // 全回退
 }
 
