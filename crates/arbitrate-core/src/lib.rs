@@ -11,4 +11,5 @@ pub mod i18n;
 pub mod imgrefs;
 pub mod paths;
 pub mod pricing;
+pub mod projectmd;
 pub mod types;
