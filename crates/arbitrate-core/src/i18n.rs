@@ -4,6 +4,7 @@
 //! 品牌适配（约束 10）：lang.persist_failed 路径 ~/.seek → ~/.arbitrate；SEEK_LANG 保留。
 
 use std::collections::BTreeMap;
+use std::sync::{LazyLock, RwLock};
 
 pub const LANG_EN: &str = "en";
 pub const LANG_ZH: &str = "zh";
@@ -253,4 +254,58 @@ impl Bundle {
             format_message(&s, args)
         }
     }
+}
+
+// ---- resolve 优先级 + 进程级默认束（D4-2）----
+
+/// 会话语言优先级（高→低）：SEEK_LANG > configLang > LC_ALL > LANG > en。
+/// 纯核心：env 经闭包注入（测试不改真实 env，并行安全）。
+pub fn resolve_with(config_lang: &str, env: impl Fn(&str) -> Option<String>) -> String {
+    for code in [
+        normalize(&env("SEEK_LANG").unwrap_or_default()),
+        normalize(config_lang),
+        normalize(&env("LC_ALL").unwrap_or_default()),
+        normalize(&env("LANG").unwrap_or_default()),
+    ] {
+        if !code.is_empty() {
+            return code;
+        }
+    }
+    LANG_EN.to_string()
+}
+
+/// 薄包装：读真实进程 env。生产启动调用一次（M2 cmd 接线）。
+pub fn resolve(config_lang: &str) -> String {
+    resolve_with(config_lang, |name| std::env::var(name).ok())
+}
+
+/// 进程级默认束。启动 + /lang 交换；RwLock 保证渲染中途交换竞态干净。
+static DEFAULT: LazyLock<RwLock<Bundle>> = LazyLock::new(|| RwLock::new(Bundle::new(LANG_EN)));
+
+/// 安装全局束。None → en（镜像 Go SetDefault(nil) 重置）。
+pub fn set_default(b: Option<Bundle>) {
+    let bundle = b.unwrap_or_else(|| Bundle::new(LANG_EN));
+    *DEFAULT.write().unwrap_or_else(|e| e.into_inner()) = bundle;
+}
+
+/// 全局束快照（clone，避免锁守卫生命周期泄漏给调用方）。
+pub fn default_bundle() -> Bundle {
+    DEFAULT.read().unwrap_or_else(|e| e.into_inner()).clone()
+}
+
+/// 包级翻译：经全局束。见 Bundle::t。
+pub fn t(key: &str, args: &[Arg]) -> String {
+    DEFAULT
+        .read()
+        .unwrap_or_else(|e| e.into_inner())
+        .t(key, args)
+}
+
+/// 包级语言码。
+pub fn lang() -> String {
+    DEFAULT
+        .read()
+        .unwrap_or_else(|e| e.into_inner())
+        .lang()
+        .to_string()
 }

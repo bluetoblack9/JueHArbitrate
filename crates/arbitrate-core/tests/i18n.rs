@@ -276,3 +276,119 @@ fn translation_smoke() {
         }
     }
 }
+
+// ---- Task 2: resolve + 全局默认 ----
+use arbitrate_core::i18n::{default_bundle, lang, resolve, resolve_with, set_default, t};
+use std::sync::{Arc, Barrier, Mutex};
+
+// 全局默认是进程级 static：所有触碰它的测试共享串行守卫（D4-2）。
+static SERIAL: Mutex<()> = Mutex::new(());
+fn serial() -> std::sync::MutexGuard<'static, ()> {
+    SERIAL.lock().unwrap_or_else(|e| e.into_inner())
+}
+
+fn env_from<'a>(pairs: &'a [(&'a str, &'a str)]) -> impl Fn(&str) -> Option<String> + 'a {
+    move |name| {
+        pairs
+            .iter()
+            .find(|(k, _)| *k == name)
+            .map(|(_, v)| v.to_string())
+    }
+}
+
+#[test]
+fn resolve_precedence() {
+    // SEEK_LANG > configLang > LC_ALL > LANG > en；不支持穿透
+    let cases: &[(&[(&str, &str)], &str, &str)] = &[
+        (
+            &[("SEEK_LANG", "zh"), ("LC_ALL", "en"), ("LANG", "en")],
+            "en",
+            "zh",
+        ),
+        (&[("SEEK_LANG", "fr")], "zh", "zh"),
+        (
+            &[("SEEK_LANG", ""), ("LC_ALL", "zh_CN"), ("LANG", "en")],
+            "",
+            "zh",
+        ),
+        (&[("LC_ALL", ""), ("LANG", "zh")], "", "zh"),
+        (&[], "", "en"),
+        (
+            &[("SEEK_LANG", "fr"), ("LC_ALL", "fr"), ("LANG", "zh")],
+            "fr",
+            "zh",
+        ),
+        (&[("LANG", "EN_us")], "", "en"),
+    ];
+    for (pairs, config, want) in cases {
+        assert_eq!(
+            resolve_with(config, env_from(pairs)),
+            *want,
+            "config={config:?} pairs={pairs:?}"
+        );
+    }
+}
+
+#[test]
+fn resolve_normalize_config() {
+    // configLang 不预归一化，resolve 内部 normalize
+    assert_eq!(resolve_with(" EN_us ", env_from(&[])), "en");
+    assert_eq!(resolve_with("zh-Hant", env_from(&[])), "zh");
+    assert_eq!(resolve_with("klingon", env_from(&[])), "en");
+}
+
+#[test]
+fn default_lifecycle() {
+    let _g = serial();
+    set_default(None);
+    assert_eq!(lang(), "en");
+    assert_eq!(t("view.starting", &[]), "starting…");
+    set_default(Some(Bundle::new("zh")));
+    assert_eq!(lang(), "zh");
+    assert_eq!(default_bundle().lang(), "zh");
+    assert_eq!(t("view.starting", &[]), "启动中…");
+    set_default(None);
+    assert_eq!(lang(), "en");
+    assert_eq!(t("view.starting", &[]), "starting…");
+}
+
+#[test]
+fn concurrent_default_swap() {
+    let _g = serial();
+    set_default(None);
+    const READERS: usize = 8;
+    const SWAPS: usize = 200;
+    let barrier = Arc::new(Barrier::new(READERS + 1));
+    let mut handles = Vec::new();
+    for _ in 0..READERS {
+        let b = Arc::clone(&barrier);
+        handles.push(std::thread::spawn(move || {
+            b.wait();
+            for _ in 0..(SWAPS * 4) {
+                let s = t("view.starting", &[]);
+                assert!(s == "starting…" || s == "启动中…", "竞态撕裂: {s}");
+                let l = lang();
+                assert!(l == "en" || l == "zh");
+            }
+        }));
+    }
+    barrier.wait();
+    for i in 0..SWAPS {
+        set_default(Some(Bundle::new(if i % 2 == 0 { "zh" } else { "en" })));
+    }
+    for h in handles {
+        h.join().unwrap();
+    }
+    set_default(None);
+    assert_eq!(lang(), "en");
+}
+
+#[test]
+fn resolve_wrapper_smoke() {
+    // 薄包装读真实 env：结果必为支持码（不依赖开发者具体 locale）
+    let code = resolve("");
+    assert!(
+        code == "en" || code == "zh",
+        "resolve 必返回支持码，got {code}"
+    );
+}
