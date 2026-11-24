@@ -7,6 +7,7 @@ pub mod config;
 pub mod diff;
 pub mod frontmatter;
 pub mod i18n;
+pub mod imgrefs;
 pub mod paths;
 pub mod pricing;
 pub mod types;
