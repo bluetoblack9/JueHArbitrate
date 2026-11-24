@@ -26,6 +26,8 @@
 
 # 延后登记（计划 4 末）
 
+[计划 4 交付归档](archive/m0-plan4/README.md)记录 `a6f7b3d` 的任务映射和最终本地验收结果。
+
 - Windows `-install` 接线归 M2，交互 PATH 提示归 M3。M0 已实现平台辅助和可注入后端。UNC host/share 段的 `..` 保护归 M3。PATH 比较目前采用 ASCII 大小写折叠，Unicode 路径的比较规则待 Windows 接线时确认。
 - keymap CLI 和 TUI 集成归 M2/M3。M0 解析范围限于单层段与字符串键值，仅加载 `[bindings]`。完整 TOML 语法和非 ASCII 警告引号细节暂不纳入。
 - i18n 格式化器忽略多余实参，`%q` 的 Unicode 可打印判定采用 Rust 近似。后续调整语言解析时补 `config_lang` 与 `LC_ALL` 均有效且冲突的用例。
