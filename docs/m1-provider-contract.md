@@ -33,3 +33,27 @@ Rust 1.90.0 的锁文件解析选定 reqwest 0.12.28（rustls 后端）及 Tokio
 ## TTS 字符表
 
 Han 判定使用 Unicode 17.0.0 的 Script 属性完整区间表。Rust 生成器从仓库内 Scripts.txt 提取区间，普通测试逐区间比对并检查 10,000 的边界。Unicode 数据版本与上游运行时内置表可能不同，线上账单另验。[数据来源](https://www.unicode.org/Public/17.0.0/ucd/Scripts.txt) · [fixture 摘要与许可](../tests/fixtures/manifest.json)
+
+## M1.0 签收
+
+验收对象为功能分支 `feat/m1-provider-foundation` 的 `c735b50ef23b9ff0dcf34c7857453f102b2b37ff`。本机使用 Rust 1.90.0，目标为 `aarch64-apple-darwin`。工作区测试 310 项通过、0 项失败、2 项忽略。两个忽略项是显式 fixture 和 Han 区间表生成器，均以单独的生成命令运行通过。常规门禁运行后，Cargo.lock、fixture 和生成表均通过 Git 差异检查。
+
+| 执行环境 | 通过项 |
+| --- | --- |
+| 本机 macOS | 格式检查、严格 Clippy、锁定构建和全工作区测试。两个 provider 的 all-targets Clippy 与 llm 发布构建的 5 项 HTTP 测试也通过 |
+| Linux runner | 格式检查、严格 Clippy、锁定测试、cargo-deny 审计和 musl 目标检查。[Linux job](https://github.com/bluetoblack9/JueHArbitrate/actions/runs/45556651228/job/139010209726) |
+| macOS runner | 格式检查、严格 Clippy 和锁定测试。[macOS job](https://github.com/bluetoblack9/JueHArbitrate/actions/runs/45556651228/job/139010209489) |
+| Windows runner | 原生构建与链接、格式检查、严格 Clippy 和锁定测试。[Windows job](https://github.com/bluetoblack9/JueHArbitrate/actions/runs/45556651228/job/139010209756) |
+
+额外运行的全工作区 all-targets Clippy 报告了 M0 测试文件 `i18n.rs`、`pathop.rs` 和 `config.rs` 中的既有 lint。M1.0 计划和 CI 规定的全工作区严格 Clippy 已通过。
+
+| 签收项 | 证据与下游验收 |
+| --- | --- |
+| 领域字段与定价 | `provider_messages` 验证共享样例，`types`、`pricing`、`budget`、`cache` 验证 M0 契约。批 A 核对响应和文本，批 C 核对附件副本，批 E 核对通用字段映射，批 F 核对覆盖表安装。M2 验证正文中的附件数量、提示顺序和原文 |
+| 依赖图与锁文件 | `dependency_graph` 的六项测试通过，九个本地包继承 MIT。固定版本的 cargo-deny 覆盖两个 provider、reqwest 和 rustls。Linux 原生审计和 musl 目标检查通过 |
+| HTTP/SSE fixture | 两端 `http_fixture` 与原 `mock_http_selftest` 验证重复头、multipart 顺序、二进制数据、200 后断流和 SSE 暂停。批 B/C/E 分别补充实际 decoder、上传和适配器事件测试 |
+| 请求与取消 | `Transport::request` 接收目录相对路径，`openai_request` 接收完整 URL。测试验证 session 有无、默认与注入超时、debug/release UA。批 A/B 使用 `wait_retry` 和 `until_cancelled`。退避测试在 499ms 仍等待、500ms 完成，在 0ms 取消后立即返回。400ms 和 600ms 的临时变更均被捕获，还原后连续三次专项通过。批 F 使用 5 秒目录超时 |
+| Han 字符与限额 | Han 专项和 fixture SHA-256 检查通过。批 D 使用 `tts_billable_chars` 和 `TTS_MAX_BILLABLE_CHARS` 验证发送前的上限及成本计算 |
+| 线上资格 | OpenCode 网关计费仍待真实凭据下的独立验证。M1.4 记录实际证据 |
+
+M1.0 已签收。批 A 和批 E 的接口层可分别推进，批 F 可使用现有 core 注册表和 llm HTTP 入口。[全部 CI 任务](https://github.com/bluetoblack9/JueHArbitrate/actions/runs/45556651228)

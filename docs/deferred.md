@@ -13,12 +13,12 @@
 
 # 延后登记（计划 3 末）
 
-- Message/ChatResponse 等消息领域类型：M1 provider 层（D3-2 YAGNI）
+- Message/ChatResponse 等共享领域类型已在 M1.0 交付（`7be0c23`），各 provider 的 wire 编解码由后续批次实现。[M1.0 签收](m1-provider-contract.md#m10-签收)
 - opencatalog 刷新安装入口接线：M1（set_model_rates/set_limits 已建 + 合成 id 测试）
 - Tracker 生产接线（agent TurnEnd → record/set_base/seal/record_flat_cost）：M2
 - 锁定成本持久化接线（M2 保存 cumulative()+cumulative_cost()，resume 经 set_base_locked 恢复；平价成本折叠进总额）：M2（D3-9 契约已建）；token-only 近似路径（set_base）仍丢失平价成本——上游天花板保留
 - adopt_child 生产调用方（subagent spawn）：M4
-- TTSBillableChars/TTSMaxBillableChars 计数助手：M1 deepseek
+- `tts_billable_chars` 和 `TTS_MAX_BILLABLE_CHARS` 已在 M1.0 交付（`c735b50`），批 D 接入 TTS 请求验证与计费。[M1.0 签收](m1-provider-contract.md#m10-签收)
 - TurnRecord 的 model/tier 审计字段：M2 会话导出需要时再加（D3-5）
 - core Cargo.toml 尾换行：M1 批（计划 2 遗留 hygiene 组）
 - serde_json dev-dep 冗余声明清理：M1 批（计划 3 Task 1 评审 minor，normal deps 已对集成测试可见，dev-dep 条目为功能性 no-op；与尾换行同批 1 行改动）
