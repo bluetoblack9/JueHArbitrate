@@ -1,8 +1,10 @@
 //! Request construction for DeepSeek endpoints.
 
+use std::future::Future;
 use std::time::Duration;
 
 use reqwest::{Client, Method, RequestBuilder, Url};
+use tokio::sync::watch;
 
 pub const DEFAULT_REQUEST_TIMEOUT: Duration = Duration::from_secs(300);
 const INVALID_ENDPOINT: &str = "invalid provider endpoint path";
@@ -52,5 +54,31 @@ impl Transport {
             return Err(INVALID_ENDPOINT.into());
         }
         Ok(self.client.request(method, url).timeout(self.timeout))
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct Cancelled;
+
+pub const RETRY_DELAY: Duration = Duration::from_millis(500);
+
+/// Use a caller-supplied timer with the provider's retry delay.
+pub async fn wait_retry<S, F>(cancel: &mut watch::Receiver<bool>, sleep: S) -> Result<(), Cancelled>
+where
+    S: FnOnce(Duration) -> F,
+    F: Future<Output = ()>,
+{
+    until_cancelled(cancel, sleep(RETRY_DELAY)).await
+}
+
+/// Stop an operation when cancellation arrives or its control sender closes.
+pub async fn until_cancelled<F: Future>(
+    cancel: &mut watch::Receiver<bool>,
+    operation: F,
+) -> Result<F::Output, Cancelled> {
+    tokio::select! {
+        biased;
+        _ = cancel.wait_for(|value| *value) => Err(Cancelled),
+        result = operation => Ok(result),
     }
 }

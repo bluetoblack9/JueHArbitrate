@@ -149,3 +149,139 @@ async fn transport_preserves_the_base_path_and_injected_timeout() {
         );
     }
 }
+
+async fn sleep_until(mut clock: tokio::sync::watch::Receiver<Duration>, delay: Duration) {
+    clock.wait_for(|elapsed| *elapsed >= delay).await.unwrap();
+}
+
+fn retry_server() -> (MockHttp, reqwest::Client, String) {
+    let server = MockHttp::start(vec![
+        Reply::Json {
+            status: 503,
+            body: "{}".into(),
+        },
+        Reply::Json {
+            status: 200,
+            body: "{}".into(),
+        },
+    ]);
+    let client = reqwest::Client::builder()
+        .no_proxy()
+        .timeout(Duration::from_secs(5))
+        .build()
+        .unwrap();
+    let endpoint = format!("http://{}/retry", server.addr);
+    (server, client, endpoint)
+}
+
+async fn poll_once<F: std::future::Future>(
+    mut future: std::pin::Pin<&mut F>,
+) -> std::task::Poll<F::Output> {
+    tokio::select! {
+        biased;
+        result = &mut future => std::task::Poll::Ready(result),
+        _ = std::future::ready(()) => std::task::Poll::Pending,
+    }
+}
+
+#[tokio::test]
+async fn does_not_send_again_before_the_production_retry_delay() {
+    use arbitrate_deepseek::transport::wait_retry;
+    use std::task::Poll;
+    use tokio::sync::watch;
+
+    let (server, client, endpoint) = retry_server();
+    assert_eq!(client.post(&endpoint).send().await.unwrap().status(), 503);
+    let (_cancel, mut cancelled) = watch::channel(false);
+    let (clock, elapsed) = watch::channel(Duration::ZERO);
+    let wait = wait_retry(&mut cancelled, |delay| sleep_until(elapsed, delay));
+    tokio::pin!(wait);
+    assert!(poll_once(wait.as_mut()).await.is_pending());
+    clock.send_replace(Duration::from_millis(499));
+    assert!(poll_once(wait.as_mut()).await.is_pending());
+    assert_eq!(server.requests.lock().unwrap().len(), 1);
+
+    clock.send_replace(Duration::from_millis(500));
+    assert_eq!(poll_once(wait.as_mut()).await, Poll::Ready(Ok(())));
+    assert_eq!(client.post(&endpoint).send().await.unwrap().status(), 200);
+    assert_eq!(server.requests.lock().unwrap().len(), 2);
+}
+
+#[tokio::test]
+async fn cancelling_retry_does_not_wait_for_the_clock_or_send_again() {
+    use arbitrate_deepseek::transport::{Cancelled, wait_retry};
+    use std::task::Poll;
+    use tokio::sync::watch;
+
+    let (server, client, endpoint) = retry_server();
+    assert_eq!(client.post(&endpoint).send().await.unwrap().status(), 503);
+    let (cancel, mut cancelled) = watch::channel(false);
+    let (clock, elapsed) = watch::channel(Duration::ZERO);
+    let attempt = async {
+        wait_retry(&mut cancelled, |delay| sleep_until(elapsed, delay)).await?;
+        Ok(client.post(&endpoint).send().await.unwrap().status())
+    };
+    tokio::pin!(attempt);
+    assert!(poll_once(attempt.as_mut()).await.is_pending());
+    cancel.send_replace(true);
+    assert_eq!(
+        poll_once(attempt.as_mut()).await,
+        Poll::Ready(Err(Cancelled))
+    );
+    clock.send_replace(Duration::from_secs(1));
+    assert_eq!(server.requests.lock().unwrap().len(), 1);
+}
+
+#[tokio::test]
+async fn cancelling_a_pending_sse_read_closes_the_event_channel() {
+    use arbitrate_deepseek::transport::{Cancelled, until_cancelled};
+    use std::sync::{Arc, Condvar, Mutex};
+    use tokio::sync::{mpsc, oneshot, watch};
+    use tokio::time::timeout;
+
+    let release = Arc::new((Mutex::new(false), Condvar::new()));
+    let server = MockHttp::start(vec![Reply::PausedSse {
+        first: "data: first\n\n".into(),
+        release: release.clone(),
+    }]);
+    let client = reqwest::Client::builder()
+        .no_proxy()
+        .timeout(Duration::from_secs(5))
+        .build()
+        .unwrap();
+    let mut response = client
+        .get(format!("http://{}/events", server.addr))
+        .send()
+        .await
+        .unwrap();
+    let (cancel, mut cancelled) = watch::channel(false);
+    let (events, mut received) = mpsc::channel(1);
+    let (reading, read_pending) = oneshot::channel();
+    let pump = tokio::spawn(async move {
+        let first = response.chunk().await.unwrap().unwrap();
+        events.send(first).await.unwrap();
+        let next = until_cancelled(&mut cancelled, response.chunk());
+        tokio::pin!(next);
+        assert!(poll_once(next.as_mut()).await.is_pending());
+        reading.send(()).unwrap();
+        next.await.map(|_| ())
+    });
+    timeout(Duration::from_secs(2), read_pending)
+        .await
+        .unwrap()
+        .unwrap();
+    cancel.send_replace(true);
+    assert_eq!(
+        timeout(Duration::from_secs(2), pump)
+            .await
+            .unwrap()
+            .unwrap(),
+        Err(Cancelled)
+    );
+    assert_eq!(&received.recv().await.unwrap()[..], b"data: first\n\n");
+    assert!(received.recv().await.is_none());
+    assert!(!*release.0.lock().unwrap());
+    *release.0.lock().unwrap() = true;
+    release.1.notify_all();
+    assert_eq!(server.requests.lock().unwrap().len(), 1);
+}
