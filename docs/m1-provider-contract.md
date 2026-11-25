@@ -29,3 +29,7 @@ OpenCode 真实网关计费资格为未验证。离线 UA 测试验证请求头�
 Rust 1.90.0 的锁文件解析选定 reqwest 0.12.28（rustls 后端）及 Tokio 1.54.1。两个 provider 的本地依赖各为 core，依赖图的正反例通过。九个自有 package 继承根 MIT 声明。
 
 全工作区 cargo-deny 0.20.2 审计包含 arbitrate-deepseek、arbitrate-llm、reqwest 和 rustls。0.18.4 无法解析当前 RustSec 数据库中的 CVSS 4.0 公告，因此固定较新的二进制版本。四类检查均通过。webpki-roots 1.0.12 的 CDLA-Permissive-2.0 例外限于该版本，依据该包的 Cargo.toml 许可字段。
+
+## TTS 字符表
+
+Han 判定使用 Unicode 17.0.0 的 Script 属性完整区间表。Rust 生成器从仓库内 Scripts.txt 提取区间，普通测试逐区间比对并检查 10,000 的边界。Unicode 数据版本与上游运行时内置表可能不同，线上账单另验。[数据来源](https://www.unicode.org/Public/17.0.0/ucd/Scripts.txt) · [fixture 摘要与许可](../tests/fixtures/manifest.json)

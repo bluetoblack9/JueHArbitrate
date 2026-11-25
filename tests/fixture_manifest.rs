@@ -54,6 +54,16 @@ fn manifest_covers_all_fixtures_with_correct_digests() {
 fn regenerate_fixture_manifest() {
     const META: &[(&str, &str, &str)] = &[
         (
+            "unicode/Scripts-17.0.0.txt",
+            "Unicode 17.0.0 https://www.unicode.org/Public/17.0.0/ucd/Scripts.txt",
+            "unicode-scripts/17.0.0",
+        ),
+        (
+            "unicode/LICENSE.txt",
+            "Unicode 17.0.0 data license https://www.unicode.org/license.txt",
+            "unicode-license/3",
+        ),
+        (
             "mcp-script.json",
             "M0.2 mock MCP；上游协议只读参考",
             "mcp-mock/1",
