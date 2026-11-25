@@ -182,6 +182,9 @@ fn defaults_optional_response_fields_and_rejects_invalid_types() {
         b"[]",
         b"null",
         br#"{"usage":{"prompt_tokens":"4"}}"#,
+        br#"{"usage":[4,0,4,0,0]}"#,
+        br#"{"choices":[[0,{"content":"text"},"stop"]]}"#,
+        br#"{"choices":[{"message":["assistant","text",null,null,null,null]}]}"#,
         br#"{"choices":[{"message":{"content":9}}]}"#,
     ] {
         assert!(decode_chat(invalid).is_err(), "{:?}", invalid);

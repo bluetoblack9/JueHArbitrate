@@ -2,7 +2,7 @@ use std::fmt;
 
 use serde::Deserialize;
 
-use crate::wire::EncodeError;
+use crate::wire::{EncodeError, WireObject};
 
 #[derive(Debug)]
 pub struct ApiError {
@@ -16,7 +16,7 @@ impl ApiError {
     pub(crate) fn from_body(status: u16, body: &[u8]) -> Self {
         #[derive(Deserialize)]
         struct Envelope {
-            error: Payload,
+            error: WireObject<Payload>,
         }
 
         #[derive(Deserialize)]
@@ -27,7 +27,9 @@ impl ApiError {
             message: Option<String>,
         }
 
-        if let Ok(Envelope { error }) = serde_json::from_slice(body)
+        if let Ok(WireObject(Envelope {
+            error: WireObject(error),
+        })) = serde_json::from_slice(body)
             && let Some(message) = error.message.filter(|message| !message.is_empty())
         {
             return Self {

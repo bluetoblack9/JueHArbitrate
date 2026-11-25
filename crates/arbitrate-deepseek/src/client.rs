@@ -179,7 +179,13 @@ mod tests {
             error.to_string(),
             "deepseek api error: invalid_request_error: bad input"
         );
-        for body in [r#"{"error":{"message":""}}"#, "{", "plain failure"] {
+        for body in [
+            r#"{"error":{"message":""}}"#,
+            r#"{"error":["type","code","message"]}"#,
+            r#"[[ "type", "code", "message" ]]"#,
+            "{",
+            "plain failure",
+        ] {
             let error = single_attempt(Reply::Json {
                 status: 403,
                 body: body.into(),

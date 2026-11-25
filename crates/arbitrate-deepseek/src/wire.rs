@@ -1,10 +1,12 @@
 //! DeepSeek chat request and response encoding.
 
 use std::fmt;
+use std::marker::PhantomData;
 
 use arbitrate_core::types::{ChatResponse, Choice, Message, ToolCall, Usage};
-use serde::{Deserialize, Serialize};
-use serde_json::{Map, Value};
+use serde::de::{MapAccess, Visitor, value::MapAccessDeserializer};
+use serde::{Deserialize, Deserializer, Serialize};
+use serde_json::Value;
 
 pub use arbitrate_core::types::format_hit_ratio;
 
@@ -263,20 +265,45 @@ pub fn encode_chat(request: &ChatRequest) -> Result<Vec<u8>, EncodeError> {
     serde_json::to_vec(&outbound).map_err(EncodeError::Json)
 }
 
+// Serde also accepts positional arrays for derived structs. The wire protocol
+// uses JSON objects for messages, choices, and usage counters.
+#[derive(Default)]
+pub(crate) struct WireObject<T>(pub(crate) T);
+
+impl<'de, T: Deserialize<'de>> Deserialize<'de> for WireObject<T> {
+    fn deserialize<D: Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+        struct ObjectVisitor<T>(PhantomData<T>);
+
+        impl<'de, T: Deserialize<'de>> Visitor<'de> for ObjectVisitor<T> {
+            type Value = WireObject<T>;
+
+            fn expecting(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+                formatter.write_str("a DeepSeek JSON object")
+            }
+
+            fn visit_map<M: MapAccess<'de>>(self, map: M) -> Result<Self::Value, M::Error> {
+                T::deserialize(MapAccessDeserializer::new(map)).map(WireObject)
+            }
+        }
+
+        deserializer.deserialize_map(ObjectVisitor(PhantomData))
+    }
+}
+
 #[derive(Deserialize)]
 struct InboundResponse {
     id: Option<String>,
     object: Option<String>,
     created: Option<i64>,
     model: Option<String>,
-    choices: Option<Vec<InboundChoice>>,
-    usage: Option<InboundUsage>,
+    choices: Option<Vec<WireObject<InboundChoice>>>,
+    usage: Option<WireObject<InboundUsage>>,
 }
 
 #[derive(Deserialize)]
 struct InboundChoice {
     index: Option<usize>,
-    message: Option<InboundMessage>,
+    message: Option<WireObject<InboundMessage>>,
     finish_reason: Option<String>,
 }
 
@@ -286,7 +313,7 @@ struct InboundMessage {
     content: Option<String>,
     name: Option<String>,
     tool_call_id: Option<String>,
-    tool_calls: Option<Vec<InboundCall>>,
+    tool_calls: Option<Vec<WireObject<InboundCall>>>,
     reasoning_content: Option<String>,
 }
 
@@ -296,7 +323,7 @@ struct InboundCall {
     id: Option<String>,
     #[serde(rename = "type")]
     kind: Option<String>,
-    function: Option<InboundFunction>,
+    function: Option<WireObject<InboundFunction>>,
 }
 
 #[derive(Default, Deserialize)]
@@ -325,8 +352,8 @@ impl From<InboundMessage> for Message {
                 .tool_calls
                 .unwrap_or_default()
                 .into_iter()
-                .map(|call| {
-                    let function = call.function.unwrap_or_default();
+                .map(|WireObject(call)| {
+                    let WireObject(function) = call.function.unwrap_or_default();
                     ToolCall {
                         index: call.index,
                         id: call.id.unwrap_or_default(),
@@ -355,8 +382,7 @@ impl From<InboundUsage> for Usage {
 }
 
 pub fn decode_chat(bytes: &[u8]) -> Result<ChatResponse, serde_json::Error> {
-    let object = serde_json::from_slice::<Map<String, Value>>(bytes)?;
-    let response: InboundResponse = serde_json::from_value(Value::Object(object))?;
+    let WireObject(response) = serde_json::from_slice::<WireObject<InboundResponse>>(bytes)?;
     Ok(ChatResponse {
         id: response.id.unwrap_or_default(),
         object: response.object.unwrap_or_default(),
@@ -366,12 +392,12 @@ pub fn decode_chat(bytes: &[u8]) -> Result<ChatResponse, serde_json::Error> {
             .choices
             .unwrap_or_default()
             .into_iter()
-            .map(|choice| Choice {
+            .map(|WireObject(choice)| Choice {
                 index: choice.index.unwrap_or_default(),
-                message: choice.message.unwrap_or_default().into(),
+                message: choice.message.unwrap_or_default().0.into(),
                 finish_reason: choice.finish_reason.unwrap_or_default(),
             })
             .collect(),
-        usage: response.usage.unwrap_or_default().into(),
+        usage: response.usage.unwrap_or_default().0.into(),
     })
 }
