@@ -57,3 +57,11 @@ Han 判定使用 Unicode 17.0.0 的 Script 属性完整区间表。Rust 生成�
 | 线上资格 | OpenCode 网关计费仍待真实凭据下的独立验证。M1.4 记录实际证据 |
 
 M1.0 已签收。批 A 和批 E 的接口层可分别推进，批 F 可使用现有 core 注册表和 llm HTTP 入口。[全部 CI 任务](https://github.com/bluetoblack9/JueHArbitrate/actions/runs/45556651228)
+
+## 归档复评
+
+复评在 Task 5 发现 reqwest 在发送时会补入默认头。修复提交 `eb2f243a7cf3e244e91712abfc0ffe69b944910e` 让 llm 的 `Transport::new` 接收 `TransportClient`。`TransportClient::new(default_headers, use_system_proxy)` 在创建客户端前过滤 `x-opencode-session`，请求的 session 值由单次调用提供。回归测试经注入客户端的 builder 实际发送，断言空 session 省略该头、非空 session 发出唯一的指定值、其他默认头仍可传输。
+
+修复前回环回归因出现默认 session 而失败。修复后工作区测试 310 项通过、0 项失败、2 项显式生成器忽略，llm 发布构建的 5 项 HTTP 测试全部通过。格式检查、工作区严格 Clippy 和 llm all-targets 严格 Clippy 均通过。修复提交的 Linux、macOS、Windows CI 复验成功。[复评修复 CI](https://github.com/bluetoblack9/JueHArbitrate/actions/runs/45564046570)
+
+八项任务的执行步骤和验收标准已随仓库保存。快照同期更新 llm 客户端签名和线上请求头断言。[M1.0 执行计划快照](archive/m1-provider-foundation/2026-11-25-m1-plan1-provider-foundation.md)
