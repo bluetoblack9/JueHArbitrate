@@ -2,5 +2,14 @@
 name = "arbitrate-deepseek"
 version.workspace = true
 edition.workspace = true
+license.workspace = true
 
 [dependencies]
+arbitrate-core = { workspace = true }
+reqwest = { workspace = true, features = ["multipart"] }
+tokio = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+
+[dev-dependencies]
+tokio = { workspace = true, features = ["test-util"] }

@@ -2,5 +2,12 @@
 name = "arbitrate-llm"
 version.workspace = true
 edition.workspace = true
+license.workspace = true
 
 [dependencies]
+arbitrate-core = { workspace = true }
+reqwest = { workspace = true }
+tokio = { workspace = true }
+
+[dev-dependencies]
+tokio = { workspace = true, features = ["test-util"] }

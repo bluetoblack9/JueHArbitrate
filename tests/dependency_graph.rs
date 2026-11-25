@@ -168,8 +168,17 @@ fn real_workspace_obey_allow_list() {
         .unwrap();
     assert!(out.status.success());
     let meta: serde_json::Value = serde_json::from_slice(&out.stdout).unwrap();
-    let v = check_edges(&local_edges(&meta), &allow_table());
+    let edges = local_edges(&meta);
+    let v = check_edges(&edges, &allow_table());
     assert!(v.is_empty(), "依赖违规: {v:?}");
+    for provider in ["arbitrate-deepseek", "arbitrate-llm"] {
+        let targets: BTreeSet<_> = edges
+            .iter()
+            .filter(|(from, _)| from == provider)
+            .map(|(_, to)| to.as_str())
+            .collect();
+        assert_eq!(targets, BTreeSet::from(["arbitrate-core"]), "{provider}");
+    }
 }
 
 #[test]

@@ -41,6 +41,18 @@
       "schema_version": "mcp-mock/1",
       "sha256": "746b3b507eec7c272130901bdf393e206f8c918a42819b42ffba6f3ae3b8b725",
       "spec_source": "M0.2 mock MCP；上游协议只读参考"
+    },
+    {
+      "path": "unicode/LICENSE.txt",
+      "schema_version": "unicode-license/3",
+      "sha256": "e7a93b009565cfce55919a381437ac4db883e9da2126fa28b91d12732bc53d96",
+      "spec_source": "Unicode 17.0.0 data license https://www.unicode.org/license.txt"
+    },
+    {
+      "path": "unicode/Scripts-17.0.0.txt",
+      "schema_version": "unicode-scripts/17.0.0",
+      "sha256": "9f5e50d3abaee7d6ce09480f325c706f485ae3240912527e651954d2d6b035bf",
+      "spec_source": "Unicode 17.0.0 https://www.unicode.org/Public/17.0.0/ucd/Scripts.txt"
     }
   ]
 }

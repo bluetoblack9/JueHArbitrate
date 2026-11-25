@@ -1,1 +1,16 @@
-//! arbitrate-deepseek：一等公民客户端（禁依赖 arbitrate-llm）。占位骨架，后续阶段填充。
+//! DeepSeek provider request infrastructure.
+
+pub mod transport;
+
+pub mod han;
+
+pub mod wire;
+
+pub use arbitrate_core::types::format_hit_ratio;
+
+mod client;
+mod error;
+mod retry;
+
+pub use client::{Client, DEFAULT_BASE_URL};
+pub use error::{ApiError, Error};

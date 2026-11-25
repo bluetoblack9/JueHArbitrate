@@ -17,6 +17,20 @@ jobs:
       - run: cargo fmt --check --all
       - run: cargo clippy --workspace --locked -- -D warnings
       - run: cargo test --workspace --locked
+      - name: Install cargo-deny (Linux only)
+        if: matrix.os == 'ubuntu-latest'
+        uses: taiki-e/install-action@v2
+        with:
+          tool: cargo-deny@0.20.2
+      - name: Audit workspace dependencies (Linux only)
+        if: matrix.os == 'ubuntu-latest'
+        run: cargo deny --workspace --locked check
+      - name: Install musl compiler (Linux only)
+        if: matrix.os == 'ubuntu-latest'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y musl-tools
+          musl-gcc --version
       - name: musl check (Linux only)
         if: matrix.os == 'ubuntu-latest'
         run: |
