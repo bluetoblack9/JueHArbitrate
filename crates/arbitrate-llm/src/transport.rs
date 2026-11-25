@@ -2,11 +2,34 @@
 
 use std::time::Duration;
 
+use reqwest::header::HeaderMap;
 use reqwest::{Client, Method, RequestBuilder, Url};
 
 pub const DEFAULT_REQUEST_TIMEOUT: Duration = Duration::from_secs(300);
 pub const DEFAULT_CATALOG_TIMEOUT: Duration = Duration::from_secs(5);
 const INVALID_ENDPOINT: &str = "invalid provider endpoint path";
+const OPENCODE_SESSION: &str = "x-opencode-session";
+
+/// A reusable HTTP client. Session headers are owned by each OpenAI request.
+#[derive(Clone)]
+pub struct TransportClient(Client);
+
+impl TransportClient {
+    pub fn new(
+        mut default_headers: HeaderMap,
+        use_system_proxy: bool,
+    ) -> Result<Self, reqwest::Error> {
+        // reqwest fills missing request headers from client defaults during send.
+        default_headers.remove(OPENCODE_SESSION);
+        let builder = Client::builder().default_headers(default_headers);
+        let builder = if use_system_proxy {
+            builder
+        } else {
+            builder.no_proxy()
+        };
+        builder.build().map(Self)
+    }
+}
 
 #[derive(Clone)]
 pub struct Transport {
@@ -17,14 +40,14 @@ pub struct Transport {
 }
 
 impl Transport {
-    pub fn new(client: Client, mut base: Url, timeout: Duration) -> Self {
+    pub fn new(client: TransportClient, mut base: Url, timeout: Duration) -> Self {
         if !base.path().ends_with('/')
             && let Ok(mut segments) = base.path_segments_mut()
         {
             segments.push("");
         }
         Self {
-            client,
+            client: client.0,
             base,
             timeout,
             user_agent: user_agent(if cfg!(debug_assertions) {
@@ -81,7 +104,7 @@ impl Transport {
         if session.is_empty() {
             request
         } else {
-            request.header("x-opencode-session", session)
+            request.header(OPENCODE_SESSION, session)
         }
     }
 }

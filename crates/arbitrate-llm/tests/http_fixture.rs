@@ -91,8 +91,11 @@ async fn paused_sse_yields_the_first_event_before_releasing_eof() {
 
 #[tokio::test]
 async fn openai_preserves_full_endpoints_and_only_sends_nonempty_session() {
-    use arbitrate_llm::transport::{DEFAULT_REQUEST_TIMEOUT, Transport, user_agent};
+    use arbitrate_llm::transport::{
+        DEFAULT_REQUEST_TIMEOUT, Transport, TransportClient, user_agent,
+    };
     use reqwest::Url;
+    use reqwest::header::{HeaderMap, HeaderValue};
 
     let server = MockHttp::start(vec![
         Reply::Json {
@@ -102,7 +105,14 @@ async fn openai_preserves_full_endpoints_and_only_sends_nonempty_session() {
         3
     ]);
     let base = Url::parse(&format!("http://{}/inference/go/v1/", server.addr)).unwrap();
-    let transport = Transport::new(client(), base, DEFAULT_REQUEST_TIMEOUT);
+    let mut defaults = HeaderMap::new();
+    defaults.insert(
+        "x-opencode-session",
+        HeaderValue::from_static("inherited-fixture-session"),
+    );
+    defaults.insert("x-fixture-default", HeaderValue::from_static("kept"));
+    let injected = TransportClient::new(defaults, false).unwrap();
+    let transport = Transport::new(injected, base, DEFAULT_REQUEST_TIMEOUT);
     let default_agent = if cfg!(debug_assertions) {
         "arbitrate/dev"
     } else {
@@ -126,14 +136,12 @@ async fn openai_preserves_full_endpoints_and_only_sends_nonempty_session() {
         };
         let request = transport
             .openai_request(endpoint, session)
-            .body("fixed body")
-            .build()
-            .unwrap();
-        assert_eq!(request.timeout(), Some(&Duration::from_secs(300)));
+            .body("fixed body");
         assert_eq!(
-            client().execute(request).await.unwrap().status(),
-            StatusCode::OK
+            request.try_clone().unwrap().build().unwrap().timeout(),
+            Some(&Duration::from_secs(300))
         );
+        assert_eq!(request.send().await.unwrap().status(), StatusCode::OK);
         let requests = server.requests.lock().unwrap();
         let recorded = &requests[index];
         assert_eq!(recorded.method, "POST");
@@ -148,6 +156,7 @@ async fn openai_preserves_full_endpoints_and_only_sends_nonempty_session() {
                 .collect::<Vec<_>>()
         };
         assert_eq!(values("user-agent"), [agent.as_bytes()]);
+        assert_eq!(values("x-fixture-default"), [b"kept"]);
         let session_headers = values("x-opencode-session");
         if session.is_empty() {
             assert!(session_headers.is_empty());
@@ -159,11 +168,14 @@ async fn openai_preserves_full_endpoints_and_only_sends_nonempty_session() {
 
 #[test]
 fn directory_request_preserves_prefix_and_uses_its_own_timeout() {
-    use arbitrate_llm::transport::{DEFAULT_CATALOG_TIMEOUT, Transport, user_agent};
+    use arbitrate_llm::transport::{
+        DEFAULT_CATALOG_TIMEOUT, Transport, TransportClient, user_agent,
+    };
     use reqwest::{Method, Url};
 
     let base = Url::parse("http://127.0.0.1:9/inference/go/v1/").unwrap();
-    let transport = Transport::new(client(), base.clone(), DEFAULT_CATALOG_TIMEOUT);
+    let client = TransportClient::new(Default::default(), false).unwrap();
+    let transport = Transport::new(client.clone(), base.clone(), DEFAULT_CATALOG_TIMEOUT);
     let request = transport
         .request(Method::GET, "/models")
         .unwrap()
@@ -173,7 +185,7 @@ fn directory_request_preserves_prefix_and_uses_its_own_timeout() {
     assert_eq!(request.timeout(), Some(&Duration::from_secs(5)));
     assert_eq!(user_agent(Some("")), "arbitrate/dev");
     let timeout = Duration::from_millis(30);
-    let injected = Transport::new(client(), base, timeout);
+    let injected = Transport::new(client, base, timeout);
     assert_eq!(
         injected
             .request(Method::GET, "models")
