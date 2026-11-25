@@ -1,3 +1,5 @@
+use std::future::Future;
+use std::pin::Pin;
 use std::time::Duration;
 
 use arbitrate_core::types::ChatResponse;
@@ -5,16 +7,20 @@ use reqwest::{Body, ClientBuilder, Method, Response, Url, header};
 use tokio::sync::watch;
 
 use crate::error::{ApiError, Error};
-use crate::transport::{DEFAULT_REQUEST_TIMEOUT, Transport, until_cancelled};
+use crate::retry::retry_call;
+use crate::transport::{DEFAULT_REQUEST_TIMEOUT, Transport};
 use crate::wire::{ChatRequest, decode_chat, encode_chat};
 
 pub const DEFAULT_BASE_URL: &str = "https://api.deepseek.com";
 pub(crate) const ENDPOINT_CHAT: &str = "/chat/completions";
 const JSON: &str = "application/json";
 
+type SleepFuture = Pin<Box<dyn Future<Output = ()> + Send>>;
+
 pub struct Client {
     api_key: String,
     transport: Transport,
+    sleeper: Box<dyn Fn(Duration) -> SleepFuture + Send + Sync>,
 }
 
 impl Client {
@@ -46,7 +52,18 @@ impl Client {
         Ok(Self {
             api_key,
             transport: Transport::new(client, base, timeout),
+            sleeper: Box::new(|delay| Box::pin(tokio::time::sleep(delay))),
         })
+    }
+
+    /// Replace the timer used between attempts. The retry policy supplies the delay.
+    pub fn with_sleeper<F, Fut>(mut self, sleeper: F) -> Self
+    where
+        F: Fn(Duration) -> Fut + Send + Sync + 'static,
+        Fut: Future<Output = ()> + Send + 'static,
+    {
+        self.sleeper = Box::new(move |delay| Box::pin(sleeper(delay)));
+        self
     }
 
     pub async fn chat(
@@ -57,9 +74,19 @@ impl Client {
         let mut request = request.clone();
         request.stream = false;
         let body = encode_chat(&request).map_err(Error::Encode)?;
-        until_cancelled(cancel, self.chat_once(&body))
-            .await
-            .map_err(|_| Error::Cancelled)?
+        self.retry(cancel, || self.chat_once(&body)).await
+    }
+
+    pub(crate) async fn retry<T, Op, Attempt>(
+        &self,
+        cancel: &mut watch::Receiver<bool>,
+        op: Op,
+    ) -> Result<T, Error>
+    where
+        Op: FnMut() -> Attempt,
+        Attempt: Future<Output = Result<T, Error>>,
+    {
+        retry_call(cancel, &self.sleeper, op).await
     }
 
     pub(crate) async fn send_json_once(
@@ -197,5 +224,56 @@ mod tests {
         })
         .await;
         assert!(matches!(error, Error::Decode(_)));
+    }
+
+    #[tokio::test]
+    async fn retry_cancels_a_pending_response_body_read() {
+        use crate::retry::retry_call;
+        use std::sync::{Arc, Condvar, Mutex};
+        use tokio::sync::watch;
+
+        let release = Arc::new((Mutex::new(false), Condvar::new()));
+        let server = MockHttp::start(vec![Reply::PausedSse {
+            first: "data: first\n\n".into(),
+            release: release.clone(),
+        }]);
+        let client = local_client(&server);
+        let response = tokio::time::timeout(
+            Duration::from_secs(2),
+            client.send_json_once(super::ENDPOINT_CHAT, reqwest::Body::from("{}")),
+        )
+        .await
+        .unwrap()
+        .unwrap();
+        assert_eq!(response.status(), 200);
+        let mut response = Some(response);
+        let mut attempts = 0;
+        let (sender, mut cancel) = watch::channel(false);
+        {
+            let read = retry_call(
+                &mut cancel,
+                |_| std::future::ready(()),
+                || {
+                    attempts += 1;
+                    super::read_chat_response(response.take().expect("unexpected retry"))
+                },
+            );
+            tokio::pin!(read);
+            tokio::select! {
+                biased;
+                result = &mut read => panic!("body read completed early: {result:?}"),
+                _ = std::future::ready(()) => {}
+            }
+            sender.send_replace(true);
+            tokio::select! {
+                biased;
+                result = &mut read => assert!(matches!(result, Err(Error::Cancelled))),
+                _ = std::future::ready(()) => panic!("pending body read did not cancel"),
+            }
+        }
+        *release.0.lock().unwrap() = true;
+        release.1.notify_all();
+        assert_eq!(attempts, 1);
+        assert_eq!(server.requests.lock().unwrap().len(), 1);
     }
 }

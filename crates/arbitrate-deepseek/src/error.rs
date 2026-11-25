@@ -68,6 +68,7 @@ pub enum Error {
     Api(ApiError),
     Decode(serde_json::Error),
     Cancelled,
+    Exhausted { attempts: u8, source: Box<Error> },
 }
 
 impl fmt::Display for Error {
@@ -80,6 +81,9 @@ impl fmt::Display for Error {
             Self::Api(error) => error.fmt(f),
             Self::Decode(error) => write!(f, "deepseek: decode response: {error}"),
             Self::Cancelled => f.write_str("deepseek: request cancelled"),
+            Self::Exhausted { attempts, source } => {
+                write!(f, "{source} (after {attempts} attempts)")
+            }
         }
     }
 }
@@ -91,6 +95,7 @@ impl std::error::Error for Error {
             Self::Transport(error) => Some(error),
             Self::Api(error) => Some(error),
             Self::Decode(error) => Some(error),
+            Self::Exhausted { source, .. } => Some(source.as_ref()),
             _ => None,
         }
     }
