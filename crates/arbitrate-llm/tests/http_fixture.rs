@@ -46,6 +46,7 @@ async fn reads_binary_response_without_authorization() {
 #[tokio::test]
 async fn truncated_body_is_an_error_after_success_headers() {
     let server = MockHttp::start(vec![Reply::Truncated {
+        status: 200,
         prefix: b"data: one".to_vec(),
         missing: 3,
     }]);

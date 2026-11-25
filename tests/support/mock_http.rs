@@ -22,6 +22,7 @@ pub enum Reply {
         body: Vec<u8>,
     },
     Truncated {
+        status: u16,
         prefix: Vec<u8>,
         missing: usize,
     },
@@ -168,14 +169,18 @@ fn handle(
             stream.flush()
         }
         Reply::Bytes { content_type, body } => {
-            write_bytes(&mut stream, &content_type, body.len(), &body)
+            write_bytes(&mut stream, 200, &content_type, body.len(), &body)
         }
-        Reply::Truncated { prefix, missing } => {
+        Reply::Truncated {
+            status,
+            prefix,
+            missing,
+        } => {
             let declared = prefix
                 .len()
                 .checked_add(missing)
                 .ok_or_else(invalid_request)?;
-            write_bytes(&mut stream, "text/event-stream", declared, &prefix)
+            write_bytes(&mut stream, status, "text/event-stream", declared, &prefix)
         }
         Reply::PausedSse { first, release } => {
             write_sse_headers(&mut stream)?;
@@ -240,13 +245,14 @@ fn read_chunked(reader: &mut impl BufRead) -> std::io::Result<Vec<u8>> {
 
 fn write_bytes(
     stream: &mut TcpStream,
+    status: u16,
     content_type: &str,
     declared: usize,
     body: &[u8],
 ) -> std::io::Result<()> {
     write!(
         stream,
-        "HTTP/1.1 200 OK\r\nContent-Type: {content_type}\r\nContent-Length: {declared}\r\nConnection: close\r\n\r\n"
+        "HTTP/1.1 {status} X\r\nContent-Type: {content_type}\r\nContent-Length: {declared}\r\nConnection: close\r\n\r\n"
     )?;
     stream.write_all(body)?;
     stream.flush()
