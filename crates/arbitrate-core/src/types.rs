@@ -1,7 +1,4 @@
-//! 共享消息/usage 领域类型（总纲约束 5：共享领域类型归 arbitrate-core）。
-//! 批 C 只落 Usage（token 记账 + DeepSeek 前缀缓存元数据）；Message 等消息
-//! 类型 M1 provider 层再落，不预建。字段名与上游 wire JSON 名一致（协议
-//! 标识符，约束 10 保留）——这是 API 契约，不是 Go 磁盘格式兼容义务。
+//! Shared message and usage values. Providers and state own their encodings.
 
 use serde::{Deserialize, Serialize};
 
@@ -49,4 +46,61 @@ pub fn format_hit_ratio(u: &Usage) -> String {
         return "n/a".to_string();
     }
     format!("{:.1}%", u.hit_ratio() * 100.0)
+}
+
+/// A message in conversation history.
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub struct Message {
+    pub role: String,
+    pub content: String,
+    pub name: String,
+    pub tool_call_id: String,
+    pub tool_calls: Vec<ToolCall>,
+    pub images: Vec<ImagePart>,
+    pub files: Vec<FilePart>,
+    pub reasoning_content: String,
+    pub predicted_next: String,
+}
+
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub struct ToolCall {
+    /// Position supplied by a streaming delta, when present.
+    pub index: Option<usize>,
+    pub id: String,
+    pub kind: String,
+    pub name: String,
+    /// Original arguments, carried as text until an adapter or tool parses them.
+    pub arguments: String,
+}
+
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub struct ImagePart {
+    pub asset: String,
+    pub url: String,
+}
+
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub struct FilePart {
+    pub asset: String,
+    pub file_id: String,
+    /// Unix seconds. Zero means permanent or unknown.
+    pub expires_at: i64,
+    pub purpose: String,
+}
+
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub struct Choice {
+    pub index: usize,
+    pub message: Message,
+    pub finish_reason: String,
+}
+
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub struct ChatResponse {
+    pub id: String,
+    pub object: String,
+    pub created: i64,
+    pub model: String,
+    pub choices: Vec<Choice>,
+    pub usage: Usage,
 }
