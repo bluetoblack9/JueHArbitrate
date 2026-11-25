@@ -352,19 +352,23 @@ impl From<InboundMessage> for Message {
                 .tool_calls
                 .unwrap_or_default()
                 .into_iter()
-                .map(|WireObject(call)| {
-                    let WireObject(function) = call.function.unwrap_or_default();
-                    ToolCall {
-                        index: call.index,
-                        id: call.id.unwrap_or_default(),
-                        kind: call.kind.unwrap_or_default(),
-                        name: function.name.unwrap_or_default(),
-                        arguments: function.arguments.unwrap_or_default(),
-                    }
-                })
+                .map(|WireObject(call)| call.into())
                 .collect(),
             reasoning_content: message.reasoning_content.unwrap_or_default(),
             ..Self::default()
+        }
+    }
+}
+
+impl From<InboundCall> for ToolCall {
+    fn from(call: InboundCall) -> Self {
+        let WireObject(function) = call.function.unwrap_or_default();
+        Self {
+            index: call.index,
+            id: call.id.unwrap_or_default(),
+            kind: call.kind.unwrap_or_default(),
+            name: function.name.unwrap_or_default(),
+            arguments: function.arguments.unwrap_or_default(),
         }
     }
 }
@@ -400,4 +404,156 @@ pub fn decode_chat(bytes: &[u8]) -> Result<ChatResponse, serde_json::Error> {
             .collect(),
         usage: response.usage.unwrap_or_default().0.into(),
     })
+}
+
+#[cfg(test)]
+pub(crate) struct StreamChunk {
+    pub(crate) choices: Vec<StreamChoice>,
+    pub(crate) usage: Option<Usage>,
+}
+
+#[cfg(test)]
+pub(crate) struct StreamChoice {
+    pub(crate) reasoning_content: String,
+    pub(crate) content: String,
+    pub(crate) tool_calls: Vec<ToolCall>,
+    pub(crate) finish_reason: String,
+}
+
+#[cfg(test)]
+pub(crate) fn decode_stream_chunk(bytes: &[u8]) -> Result<StreamChunk, serde_json::Error> {
+    #[derive(Deserialize)]
+    struct Chunk {
+        choices: Option<Vec<WireObject<Choice>>>,
+        usage: Option<WireObject<InboundUsage>>,
+    }
+
+    #[derive(Deserialize)]
+    struct Choice {
+        delta: Option<WireObject<Delta>>,
+        finish_reason: Option<String>,
+    }
+
+    #[derive(Default, Deserialize)]
+    struct Delta {
+        #[serde(rename = "role")]
+        _role: Option<String>,
+        reasoning_content: Option<String>,
+        content: Option<String>,
+        tool_calls: Option<Vec<WireObject<InboundCall>>>,
+    }
+
+    let WireObject(chunk) = serde_json::from_slice::<WireObject<Chunk>>(bytes)?;
+    Ok(StreamChunk {
+        choices: chunk
+            .choices
+            .unwrap_or_default()
+            .into_iter()
+            .map(|WireObject(choice)| {
+                let WireObject(delta) = choice.delta.unwrap_or_default();
+                StreamChoice {
+                    reasoning_content: delta.reasoning_content.unwrap_or_default(),
+                    content: delta.content.unwrap_or_default(),
+                    tool_calls: delta
+                        .tool_calls
+                        .unwrap_or_default()
+                        .into_iter()
+                        .map(|WireObject(mut call)| {
+                            call.index.get_or_insert(0);
+                            call.into()
+                        })
+                        .collect(),
+                    finish_reason: choice.finish_reason.unwrap_or_default(),
+                }
+            })
+            .collect(),
+        usage: chunk.usage.map(|WireObject(usage)| usage.into()),
+    })
+}
+
+#[cfg(test)]
+mod stream_tests {
+    use super::*;
+
+    #[test]
+    fn stream_chunk_preserves_order_fragments_and_index_defaults() {
+        let chunk = decode_stream_chunk(br#"{
+            "choices": [
+                {"delta":{"role":"assistant"}},
+                {"delta":{"reasoning_content":"r","content":"c","tool_calls":[
+                    {"index":1,"id":"call","type":"function","function":{"name":"tool","arguments":"{"}},
+                    {"function":{"arguments":"}"}}]},"finish_reason":"tool_calls"}
+            ],
+            "usage":{"prompt_tokens":5,"completion_tokens":3,"total_tokens":8,
+                     "prompt_cache_hit_tokens":4,"prompt_cache_miss_tokens":1}
+        }"#).unwrap();
+
+        assert_eq!(chunk.choices.len(), 2);
+        assert!(chunk.choices[0].content.is_empty());
+        assert!(chunk.choices[0].reasoning_content.is_empty());
+        assert!(chunk.choices[0].tool_calls.is_empty());
+        let choice = &chunk.choices[1];
+        assert_eq!(choice.reasoning_content, "r");
+        assert_eq!(choice.content, "c");
+        assert_eq!(choice.finish_reason, "tool_calls");
+        assert_eq!(
+            choice.tool_calls,
+            [
+                ToolCall {
+                    index: Some(1),
+                    id: "call".into(),
+                    kind: "function".into(),
+                    name: "tool".into(),
+                    arguments: "{".into()
+                },
+                ToolCall {
+                    index: Some(0),
+                    arguments: "}".into(),
+                    ..Default::default()
+                },
+            ]
+        );
+        assert_eq!(
+            chunk.usage,
+            Some(Usage {
+                prompt_tokens: 5,
+                completion_tokens: 3,
+                total_tokens: 8,
+                prompt_cache_hit_tokens: 4,
+                prompt_cache_miss_tokens: 1
+            })
+        );
+    }
+
+    #[test]
+    fn stream_chunk_distinguishes_missing_null_and_explicit_usage() {
+        assert_eq!(decode_stream_chunk(b"{}").unwrap().usage, None);
+        assert_eq!(
+            decode_stream_chunk(br#"{"usage":null}"#).unwrap().usage,
+            None
+        );
+        assert_eq!(
+            decode_stream_chunk(br#"{"usage":{}}"#).unwrap().usage,
+            Some(Usage::default())
+        );
+        let chunk =
+            decode_stream_chunk(br#"{"choices":[{"delta":null,"finish_reason":"stop"}]}"#).unwrap();
+        assert_eq!(chunk.choices[0].finish_reason, "stop");
+        assert!(chunk.choices[0].content.is_empty());
+    }
+
+    #[test]
+    fn stream_chunk_rejects_malformed_object_shapes() {
+        for raw in [
+            b"[]".as_slice(),
+            br#"{"choices":[[]]}"#,
+            br#"{"choices":[{"delta":[]}]}"#,
+            br#"{"choices":[{"delta":{"content":5}}]}"#,
+            br#"{"choices":[{"delta":{"tool_calls":[[]]}}]}"#,
+            br#"{"choices":[{"delta":{"tool_calls":[{"function":[]}]}}]}"#,
+            br#"{"usage":[]}"#,
+        ] {
+            assert!(decode_stream_chunk(raw).is_err(), "{raw:?}");
+        }
+    }
 }
