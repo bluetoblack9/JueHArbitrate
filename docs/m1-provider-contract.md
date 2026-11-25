@@ -65,3 +65,19 @@ M1.0 已签收。批 A 和批 E 的接口层可分别推进，批 F 可使用现
 修复前回环回归因出现默认 session 而失败。修复后工作区测试 310 项通过、0 项失败、2 项显式生成器忽略，llm 发布构建的 5 项 HTTP 测试全部通过。格式检查、工作区严格 Clippy 和 llm all-targets 严格 Clippy 均通过。修复提交的 Linux、macOS、Windows CI 复验成功。[复评修复 CI](https://github.com/bluetoblack9/JueHArbitrate/actions/runs/45564046570)
 
 八项任务的执行步骤和验收标准已随仓库保存。快照同期更新 llm 客户端签名和线上请求头断言。[M1.0 执行计划快照](archive/m1-provider-foundation/2026-11-25-m1-plan1-provider-foundation.md)
+
+## M1.1 批 A 验收
+
+实施以 `dd4bfd4502bfd17d7c7436b5c29cdd92268c097f` 为 M1.0 基线。批 A 验收提交为 `34712269a5f550590a6576c81b5d4945a709664c`，分支为 `feat/m1-deepseek-batch-a`。[执行计划快照](archive/m1-deepseek-batch-a/2026-11-25-m1-plan2-deepseek-batch-a.md)
+
+- 本机 `aarch64-apple-darwin` 使用 Rust 1.90.0。锁定构建、格式检查、全工作区严格 Clippy 和 DeepSeek all-targets Clippy 通过。工作区测试 330 项通过、0 项失败、2 项显式生成器忽略。cargo-deny 0.20.2 的 advisories、bans、licenses 与 sources 四项检查通过。
+- Linux、macOS、Windows 原生 CI 均通过。Linux 的 cargo-deny 和 musl 检查通过，Windows 原生构建通过。[Linux](https://github.com/bluetoblack9/JueHArbitrate/actions/runs/45603344276/job/139167695159) · [macOS](https://github.com/bluetoblack9/JueHArbitrate/actions/runs/45603344276/job/139167695488) · [Windows](https://github.com/bluetoblack9/JueHArbitrate/actions/runs/45603344276/job/139167695313)
+
+| 交付 | 证据与接口 |
+| --- | --- |
+| 纯文本 wire codec | `wire::encode_chat` 和 `wire::decode_chat` 复用 core 领域类型。出站省略工具索引和预测字段，入站保留工具索引和缓存计数。wire 测试校验固定字节、可选字段及 JSON 类型。批 C 在现有 codec 加入附件双形。 |
+| Client 构造与单次操作 | `Client::new` 使用默认端点和 300 秒超时。`Client::with_options` 接收 `reqwest::ClientBuilder`，保留调用方设置的合成默认头，并在构造时关闭 reqwest 自动重试和重定向。307 回归确认 Location 目标收不到请求。 |
+| 错误和重试 | `Client::chat` 在副本上关闭 stream。单次尝试先读完整 body，再按 HTTP 状态归类，截断的 400 归 `Transport`。公开 Chat 测试覆盖可重试、不可重试、耗尽、逐字一致的重发和调用方预设的第二套重试被覆盖。 |
+| 退避与取消 | `Client::with_sleeper` 注入计时器。首个临时失败后等待 500ms，最多两次尝试。测试覆盖退避、等待响应头和已进入 body 读取时的取消。持有响应头的单测先将生产读取操作 poll 到 Pending，再取消并确认没有重发。 |
+
+批 B 复用 crate 内的 `Client::send_json_once`、`Client::retry` 和 `ApiError::from_body`。开流后的 SSE 泵按批 B 计划使用独立预算，并验证 503 → 200 空流 → 503 → 200 正常流恰好 4 次 HTTP 请求。批 C 扩展附件 codec，批 D 复用单层 `Client::retry`。真实凭据下的在线验证随 M1.4 独立记录。
