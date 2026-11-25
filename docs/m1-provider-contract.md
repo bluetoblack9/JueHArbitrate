@@ -23,3 +23,9 @@ M2 投影用例以正文「资料」、两张图片和一个文件为输入，�
 OpenAI 和兼容适配器向配置的完整 URL 发送 POST。M2 的 lane 构造负责选择 endpoint 和 session。目录收到空快照时保留当前状态。有效快照过滤所得空覆盖表清除对应旧表，安装层保护 deepseek-flash、deepseek-v4-pro、glm-5.3 三个一等模型。目录的 HTTP 和安装测试归批 F。
 
 OpenCode 真实网关计费资格为未验证。离线 UA 测试验证请求头，真实计费证据按 M1 的独立门控获取。
+
+## 传输依赖与审计
+
+Rust 1.90.0 的锁文件解析选定 reqwest 0.12.28（rustls 后端）及 Tokio 1.54.1。两个 provider 的本地依赖各为 core，依赖图的正反例通过。九个自有 package 继承根 MIT 声明。
+
+全工作区 cargo-deny 0.20.2 审计包含 arbitrate-deepseek、arbitrate-llm、reqwest 和 rustls。0.18.4 无法解析当前 RustSec 数据库中的 CVSS 4.0 公告，因此固定较新的二进制版本。四类检查均通过。webpki-roots 1.0.12 的 CDLA-Permissive-2.0 例外限于该版本，依据该包的 Cargo.toml 许可字段。
