@@ -98,3 +98,54 @@ fn records_chunked_request_bytes_after_consuming_trailers() {
     assert!(reply.starts_with("HTTP/1.1 200 "));
     assert_eq!(server.requests.lock().unwrap()[0].raw_body, [0, 255, 1]);
 }
+
+#[tokio::test]
+async fn transport_preserves_the_base_path_and_injected_timeout() {
+    use arbitrate_deepseek::transport::{DEFAULT_REQUEST_TIMEOUT, Transport};
+    use reqwest::{Client, Method, Url};
+
+    let server = MockHttp::start(vec![Reply::Json {
+        status: 200,
+        body: "{}".into(),
+    }]);
+    let base = Url::parse(&format!("http://{}/proxy/v1", server.addr)).unwrap();
+    let client = Client::builder().no_proxy().build().unwrap();
+    let transport = Transport::new(client.clone(), base.clone(), DEFAULT_REQUEST_TIMEOUT);
+    let request = transport
+        .request(Method::POST, "/chat/completions")
+        .unwrap()
+        .build()
+        .unwrap();
+    assert_eq!(request.timeout(), Some(&Duration::from_secs(300)));
+    assert_eq!(client.execute(request).await.unwrap().status(), 200);
+    let requests = server.requests.lock().unwrap();
+    assert_eq!(requests[0].path, "/proxy/v1/chat/completions");
+    assert!(
+        !requests[0]
+            .headers
+            .iter()
+            .any(|(key, _)| key == "x-opencode-session")
+    );
+
+    let timeout = Duration::from_millis(30);
+    let transport = Transport::new(client, base, timeout);
+    let request = transport
+        .request(Method::GET, "test")
+        .unwrap()
+        .build()
+        .unwrap();
+    assert_eq!(request.timeout(), Some(&timeout));
+    for endpoint in [
+        "https://example.invalid/x",
+        "//example.invalid/x",
+        " //example.invalid/proxy/v1/x",
+        "/../x",
+        "x?y=z",
+        "x#y",
+    ] {
+        assert!(
+            transport.request(Method::GET, endpoint).is_err(),
+            "{endpoint}"
+        );
+    }
+}

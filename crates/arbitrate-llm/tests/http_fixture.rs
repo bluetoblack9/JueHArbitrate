@@ -88,3 +88,99 @@ async fn paused_sse_yields_the_first_event_before_releasing_eof() {
     release.1.notify_all();
     assert!(next.await.unwrap().is_none());
 }
+
+#[tokio::test]
+async fn openai_preserves_full_endpoints_and_only_sends_nonempty_session() {
+    use arbitrate_llm::transport::{DEFAULT_REQUEST_TIMEOUT, Transport, user_agent};
+    use reqwest::Url;
+
+    let server = MockHttp::start(vec![
+        Reply::Json {
+            status: 200,
+            body: "{}".into()
+        };
+        3
+    ]);
+    let base = Url::parse(&format!("http://{}/inference/go/v1/", server.addr)).unwrap();
+    let transport = Transport::new(client(), base, DEFAULT_REQUEST_TIMEOUT);
+    let default_agent = if cfg!(debug_assertions) {
+        "arbitrate/dev"
+    } else {
+        "arbitrate/0.1.0"
+    };
+    let endpoints = [
+        ("/v1/chat/completions", "", default_agent),
+        ("/v1/chat/completions", "test-session", "arbitrate/0.1.0"),
+        (
+            "/gateway/custom-infer?api-version=test",
+            "",
+            "arbitrate/dev",
+        ),
+    ];
+    for (index, (target, session, agent)) in endpoints.into_iter().enumerate() {
+        let endpoint = Url::parse(&format!("http://{}{target}", server.addr)).unwrap();
+        let transport = match index {
+            0 => transport.clone(),
+            1 => transport.clone().with_user_agent(user_agent(Some("0.1.0"))),
+            _ => transport.clone().with_user_agent(user_agent(None)),
+        };
+        let request = transport
+            .openai_request(endpoint, session)
+            .body("fixed body")
+            .build()
+            .unwrap();
+        assert_eq!(request.timeout(), Some(&Duration::from_secs(300)));
+        assert_eq!(
+            client().execute(request).await.unwrap().status(),
+            StatusCode::OK
+        );
+        let requests = server.requests.lock().unwrap();
+        let recorded = &requests[index];
+        assert_eq!(recorded.method, "POST");
+        assert_eq!(recorded.path, target);
+        assert_eq!(&recorded.raw_body, b"fixed body");
+        let values = |name| {
+            recorded
+                .headers
+                .iter()
+                .filter(|(key, _)| key == name)
+                .map(|(_, bytes)| bytes.as_slice())
+                .collect::<Vec<_>>()
+        };
+        assert_eq!(values("user-agent"), [agent.as_bytes()]);
+        let session_headers = values("x-opencode-session");
+        if session.is_empty() {
+            assert!(session_headers.is_empty());
+        } else {
+            assert_eq!(session_headers, [session.as_bytes()]);
+        }
+    }
+}
+
+#[test]
+fn directory_request_preserves_prefix_and_uses_its_own_timeout() {
+    use arbitrate_llm::transport::{DEFAULT_CATALOG_TIMEOUT, Transport, user_agent};
+    use reqwest::{Method, Url};
+
+    let base = Url::parse("http://127.0.0.1:9/inference/go/v1/").unwrap();
+    let transport = Transport::new(client(), base.clone(), DEFAULT_CATALOG_TIMEOUT);
+    let request = transport
+        .request(Method::GET, "/models")
+        .unwrap()
+        .build()
+        .unwrap();
+    assert_eq!(request.url().path(), "/inference/go/v1/models");
+    assert_eq!(request.timeout(), Some(&Duration::from_secs(5)));
+    assert_eq!(user_agent(Some("")), "arbitrate/dev");
+    let timeout = Duration::from_millis(30);
+    let injected = Transport::new(client(), base, timeout);
+    assert_eq!(
+        injected
+            .request(Method::GET, "models")
+            .unwrap()
+            .build()
+            .unwrap()
+            .timeout(),
+        Some(&timeout)
+    );
+}
