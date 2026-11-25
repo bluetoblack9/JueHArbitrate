@@ -6,7 +6,7 @@
 - keymap 集成场景：M2/M3；Windows 交互 PATH 提示：M3
 - friction/fileroute：M2；schedule_wakeup/routines：M4
 - 冻结前端契约提取与接口适配：M5（开工前置）
-- CI 三平台远端结果：首次 push 后确认；本地门禁与远端 CI 分别登记真实结果，尚未运行记未验证
+- CI 三平台远端结果已签收。验证提交为 `527ec07`，见[计划 4 交付归档](archive/m0-plan4/README.md#三平台原生-ci-签收)
 - 旧 Go 文件/记录兼容测试：明确排除（总纲约束 4/11），不移植
 - YAML crate 定案：不引入（计划 2 D2-5）——上游 frontmatter 为手写 4 形状解析器，Rust 移植 std-only
 - agenttypes load 逐条目目录 IO 错误静默跳过（filter_map(Result::ok)）：计划 2 Task 6 评审 Important 发现，用户裁决按计划接受——上游 Go os.ReadDir 整目录报错，Rust 单条目错误罕见且新分支不可移植测试；需加强启动诊断时改 match 计入 errors
@@ -33,5 +33,5 @@
 - i18n 格式化器忽略多余实参，`%q` 的 Unicode 可打印判定采用 Rust 近似。后续调整语言解析时补 `config_lang` 与 `LC_ALL` 均有效且冲突的用例。
 - projectmd 调用方在 M2 接线时传入已解析的工作目录，并明确非常规文件、输入读取上限与截断原字节计数。后续调整查找时补第五个候选可见、第六个不可见的边界用例。
 - diff 的 LCS 矩阵占用与两端行数的乘积成正比。在编辑工具接线前确定输入上限。pathop 若引入异步工作或变更写入顺序，再给替身增加完整的操作顺序断言。
-- 本地验收代码 `b9a7009` 在 Rust 1.90.0 的 macOS 工作区通过 290 项测试，1 项原有生成器测试保持忽略。格式、严格 clippy、Windows GNU 目标含测试的 check 与严格 clippy、Linux musl 目标 check 均通过。三平台原生 CI 结果待 runner 记录。
-- 复评追加的回归使 macOS 工作区测试增至 294 项通过、0 失败、1 项原有忽略。Windows `-install` 接线应处理 `ProcessPathUpdate` 的部分成功状态：注册表若已写入便保留，按请求发出通知，重试可补齐当前进程 PATH。原生 Windows 验收项继续保留。
+- 本地验收代码 `b9a7009` 在 Rust 1.90.0 的 macOS 工作区通过 290 项测试，1 项原有生成器测试保持忽略。格式、严格 clippy、Windows GNU 目标含测试的 check 与严格 clippy、Linux musl 目标 check 均通过。此处为本地验收阶段记录，后续原生 CI 结果见交付归档。
+- 复评追加的回归使 macOS 工作区测试增至 294 项通过、0 失败、1 项原有忽略。Windows `-install` 接线应处理 `ProcessPathUpdate` 的部分成功状态：注册表若已写入便保留，按请求发出通知，重试可补齐当前进程 PATH。Windows 原生构建和测试已作为 M0.4 签收的一部分通过。

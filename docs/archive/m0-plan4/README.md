@@ -1,9 +1,10 @@
 # M0 计划 4 交付归档
 
-十个任务已交付，本地验收通过。三平台原生 CI 是 M0.4 的待验收项。
+十个任务已交付。M0.4 于 2026-11-25 签收，本地验收和三平台原生 CI 均通过。
 
 - 实施基线 `4a4d73465a86b2223c3dffbc1ea1f0e625ecf0da`
-- 验收代码 `a6f7b3da68c21807400c17d59bb89af900d8423f`
+- 本地验收代码 `a6f7b3da68c21807400c17d59bb89af900d8423f`
+- GitHub Actions 验收提交 `527ec07b98190c4d8a4ab4ef58b5eb58faa7c705`（`main`）
 - 归档标签 `archive/m0-plan4`
 - [计划全文快照](2026-11-23-m0-plan4-batch-bd.md)保存任务、约束与实施变更。示例和原定测试数量保留为过程记录，最终接口以验收提交为准。
 
@@ -39,4 +40,14 @@
 | `cargo clippy --workspace --locked --target x86_64-pc-windows-gnu -- -D warnings` | 通过 |
 | `cargo check --workspace --locked --target x86_64-unknown-linux-musl` | 通过 |
 | 基线到验收代码的空白检查、清单和锁文件核对 | 通过 |
-| [三平台原生 CI](../../../.github/workflows/ci.yml) | 待运行。Windows 原生构建、链接和测试执行待记录 |
+## 三平台原生 CI 签收
+
+2026-11-25，`main` 推送触发的 [GitHub Actions 运行 #1](https://github.com/bluetoblack9/JueHArbitrate/actions/runs/45544518702) 顺利完成。三个任务均使用工作流指定的 Rust 1.90.0。`Clippy` 使用 `-D warnings`，构建、检查和测试使用 `--workspace --locked`。
+
+| Runner | 已通过的步骤 |
+| --- | --- |
+| `ubuntu-latest` | 格式检查、Clippy、Rust 工作区测试、`x86_64-unknown-linux-musl` 检查 |
+| `macos-latest` | 格式检查、Clippy、Rust 工作区测试 |
+| `windows-latest` | 原生构建与链接、格式检查、Clippy、Rust 工作区测试 |
+
+归档保留原本地验收 SHA 和标签。当前历史中的 `54f741a` 与 `a6f7b3d` 的 Git patch ID 一致。两份验收提交的 Rust 源码、测试、资产、依赖清单与锁文件、工具链和 CI 工作流已逐路径比对一致。上表记录原生 CI 各步骤结论，本地 macOS 测试计数见前表。
