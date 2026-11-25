@@ -84,5 +84,9 @@ M1.0 已签收。批 A 和批 E 的接口层可分别推进，批 F 可使用现
 
 ### 批 A 归档复评
 
+复评验收提交为 `0febd64c6bb88725ab76d1f9e8ecaa3b59cc2bec`。本机 macOS 使用 Rust 1.90.0，工作区测试 331 项通过、0 项失败、2 项既有生成器测试忽略。格式检查、工作区严格 Clippy、DeepSeek 全目标 Clippy 和锁定构建通过。
+
+Linux、macOS、Windows 原生 CI 均通过。Linux 的依赖审计和 musl 检查通过，Windows 原生构建通过。[Linux](https://github.com/bluetoblack9/JueHArbitrate/actions/runs/45615265786/job/139208893310) · [macOS](https://github.com/bluetoblack9/JueHArbitrate/actions/runs/45615265786/job/139208893659) · [Windows](https://github.com/bluetoblack9/JueHArbitrate/actions/runs/45615265786/job/139208893546)
+
 - `Client::with_options` 拒绝在 URL 中指定用户名或密码，返回 `Error::RequestConfig`，错误消息省略凭据。回环回归覆盖用户名和密码同时存在、仅用户名、仅密码三种情况，断言服务端收到零次请求。客户端使用 `api_key` 生成 Bearer 认证头。
 - 等待响应头的取消测试使用持续监听的回环服务。服务记录首个完整请求后暂缓发送响应头。公开 `Client::chat` 返回 `Error::Cancelled` 后，测试解除暂停并断言服务共收到一次请求。

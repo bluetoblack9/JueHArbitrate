@@ -10,6 +10,8 @@
 
 批 A 已完成本地与三平台验收，实施验收基线为 `3471226`。[批 A CI](https://github.com/bluetoblack9/JueHArbitrate/actions/runs/45603344276) · [批 A 验收记录](../../../docs/m1-provider-contract.md#m11-批-a-验收)
 
+批 A 归档复评修订 `0febd64` 已通过三平台 CI。修订拒绝含凭据的端点 URL，并验证等待响应头时取消只产生一次请求。本地工作区测试 331 项通过、0 项失败、2 项既有生成器测试忽略。[复评 CI](https://github.com/bluetoblack9/JueHArbitrate/actions/runs/45615265786) · [归档复评记录](../../../docs/m1-provider-contract.md#批-a-归档复评)
+
 ## Global Constraints
 
 - 从 M1.0 已验收的 `dd4bfd4502bfd17d7c7436b5c29cdd92268c097f` 派生工作分支。开始前运行 `git merge-base --is-ancestor dd4bfd4502bfd17d7c7436b5c29cdd92268c097f HEAD`、`git status --short` 和 `cargo test --workspace --locked`。[M1.0 归档](../../../docs/m1-provider-contract.md)
