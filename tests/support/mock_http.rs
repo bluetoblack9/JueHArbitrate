@@ -26,6 +26,9 @@ pub enum Reply {
         prefix: Vec<u8>,
         missing: usize,
     },
+    PausedHeaders {
+        release: Arc<(Mutex<bool>, Condvar)>,
+    },
     PausedSse {
         first: String,
         release: Arc<(Mutex<bool>, Condvar)>,
@@ -182,18 +185,25 @@ fn handle(
                 .ok_or_else(invalid_request)?;
             write_bytes(&mut stream, status, "text/event-stream", declared, &prefix)
         }
+        Reply::PausedHeaders { release } => {
+            wait_for_release(&release);
+            Ok(())
+        }
         Reply::PausedSse { first, release } => {
             write_sse_headers(&mut stream)?;
             write_sse_chunk(&mut stream, &first)?;
-            let released = release.0.lock().unwrap();
-            let _wait = release
-                .1
-                .wait_timeout_while(released, Duration::from_secs(5), |released| !*released)
-                .unwrap();
+            wait_for_release(&release);
             stream.write_all(b"0\r\n\r\n")?;
             stream.flush()
         }
     }
+}
+
+fn wait_for_release((released, signal): &(Mutex<bool>, Condvar)) {
+    let released = released.lock().unwrap();
+    let _wait = signal
+        .wait_timeout_while(released, Duration::from_secs(5), |released| !*released)
+        .unwrap();
 }
 
 fn invalid_request() -> std::io::Error {

@@ -89,6 +89,37 @@ async fn chat_uses_injected_client_and_keeps_original_stream_flag() {
 }
 
 #[tokio::test]
+async fn custom_base_rejects_url_credentials_without_sending_a_request() {
+    let server = MockHttp::start(vec![success()]);
+    for userinfo in [
+        "fixture-user:fixture-password",
+        "fixture-user",
+        ":fixture-password",
+    ] {
+        let base = Url::parse(&format!("http://{userinfo}@{}/proxy", server.addr)).unwrap();
+        let result = Client::with_options(
+            "fixture-key".into(),
+            base,
+            Duration::from_secs(5),
+            reqwest::Client::builder().no_proxy(),
+        );
+        match result {
+            Err(Error::RequestConfig(message)) => {
+                assert!(message.contains("credentials"));
+                assert!(!message.contains("fixture-"));
+            }
+            Err(error) => panic!("unexpected error: {error}"),
+            Ok(client) => {
+                let (_sender, mut cancel) = watch::channel(false);
+                let _result = client.chat(&request(), &mut cancel).await;
+                panic!("base URL with credentials was accepted");
+            }
+        }
+    }
+    assert_same_requests(&server, 0);
+}
+
+#[tokio::test]
 async fn invalid_input_and_preexisting_cancellation_send_no_request() {
     assert!(matches!(
         Client::new(String::new()),
@@ -310,27 +341,26 @@ async fn builder_cannot_enable_redirects() {
 
 #[tokio::test]
 async fn cancels_while_waiting_for_response_headers() {
-    use tokio::sync::oneshot;
-    let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
-    let client = local_tcp_client(
-        listener.local_addr().unwrap(),
-        reqwest::Client::builder().no_proxy(),
-    )
-    .with_sleeper(|_| async { panic!("cancelled request entered backoff") });
-    let (accepted, received) = oneshot::channel();
-    let (release, hold) = std::sync::mpsc::channel();
-    let server = std::thread::spawn(move || {
-        let _connection = read_one_request(listener);
-        accepted.send(()).unwrap();
-        hold.recv_timeout(Duration::from_secs(5)).unwrap();
-    });
+    use std::sync::{Arc, Condvar, Mutex};
+
+    let release = Arc::new((Mutex::new(false), Condvar::new()));
+    let server = MockHttp::start(vec![Reply::PausedHeaders {
+        release: release.clone(),
+    }]);
+    let client = client(&server, reqwest::Client::builder().no_proxy())
+        .with_sleeper(|_| async { panic!("cancelled request entered backoff") });
     let (sender, mut cancel) = watch::channel(false);
     let input = request();
     let operation = client.chat(&input, &mut cancel);
     tokio::pin!(operation);
+    let wait_for_request = async {
+        while server.requests.lock().unwrap().is_empty() {
+            tokio::time::sleep(Duration::from_millis(5)).await;
+        }
+    };
     tokio::select! {
         result = &mut operation => panic!("request finished before cancellation: {result:?}"),
-        signal = tokio::time::timeout(Duration::from_secs(2), received) => signal.unwrap().unwrap(),
+        result = tokio::time::timeout(Duration::from_secs(2), wait_for_request) => result.unwrap(),
     }
     sender.send_replace(true);
     assert!(matches!(
@@ -339,8 +369,9 @@ async fn cancels_while_waiting_for_response_headers() {
             .unwrap(),
         Err(Error::Cancelled)
     ));
-    release.send(()).unwrap();
-    server.join().unwrap();
+    *release.0.lock().unwrap() = true;
+    release.1.notify_all();
+    assert_same_requests(&server, 1);
 }
 
 fn timed_client(

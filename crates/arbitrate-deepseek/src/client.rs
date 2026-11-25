@@ -35,6 +35,8 @@ impl Client {
         )
     }
 
+    /// Build a DeepSeek client using `api_key` for Bearer authentication.
+    /// The base URL must not contain credentials.
     pub fn with_options(
         api_key: String,
         base: Url,
@@ -43,6 +45,11 @@ impl Client {
     ) -> Result<Self, Error> {
         if api_key.is_empty() {
             return Err(Error::MissingApiKey);
+        }
+        if !base.username().is_empty() || base.password().is_some() {
+            return Err(Error::RequestConfig(
+                "base URL must not contain credentials".into(),
+            ));
         }
         let client = builder
             .retry(reqwest::retry::never())

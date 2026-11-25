@@ -81,3 +81,8 @@ M1.0 已签收。批 A 和批 E 的接口层可分别推进，批 F 可使用现
 | 退避与取消 | `Client::with_sleeper` 注入计时器。首个临时失败后等待 500ms，最多两次尝试。测试覆盖退避、等待响应头和已进入 body 读取时的取消。持有响应头的单测先将生产读取操作 poll 到 Pending，再取消并确认没有重发。 |
 
 批 B 复用 crate 内的 `Client::send_json_once`、`Client::retry` 和 `ApiError::from_body`。开流后的 SSE 泵按批 B 计划使用独立预算，并验证 503 → 200 空流 → 503 → 200 正常流恰好 4 次 HTTP 请求。批 C 扩展附件 codec，批 D 复用单层 `Client::retry`。真实凭据下的在线验证随 M1.4 独立记录。
+
+### 批 A 归档复评
+
+- `Client::with_options` 拒绝在 URL 中指定用户名或密码，返回 `Error::RequestConfig`，错误消息省略凭据。回环回归覆盖用户名和密码同时存在、仅用户名、仅密码三种情况，断言服务端收到零次请求。客户端使用 `api_key` 生成 Bearer 认证头。
+- 等待响应头的取消测试使用持续监听的回环服务。服务记录首个完整请求后暂缓发送响应头。公开 `Client::chat` 返回 `Error::Cancelled` 后，测试解除暂停并断言服务共收到一次请求。
