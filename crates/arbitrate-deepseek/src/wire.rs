@@ -406,13 +406,11 @@ pub fn decode_chat(bytes: &[u8]) -> Result<ChatResponse, serde_json::Error> {
     })
 }
 
-#[cfg(test)]
 pub(crate) struct StreamChunk {
     pub(crate) choices: Vec<StreamChoice>,
     pub(crate) usage: Option<Usage>,
 }
 
-#[cfg(test)]
 pub(crate) struct StreamChoice {
     pub(crate) reasoning_content: String,
     pub(crate) content: String,
@@ -420,7 +418,6 @@ pub(crate) struct StreamChoice {
     pub(crate) finish_reason: String,
 }
 
-#[cfg(test)]
 pub(crate) fn decode_stream_chunk(bytes: &[u8]) -> Result<StreamChunk, serde_json::Error> {
     #[derive(Deserialize)]
     struct Chunk {

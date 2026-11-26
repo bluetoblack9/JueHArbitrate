@@ -1,5 +1,11 @@
-#[cfg(test)]
-use crate::wire::{ChatRequest, StreamChunk, StreamOptions, decode_stream_chunk};
+use reqwest::Response;
+use tokio::sync::{mpsc, watch};
+
+use crate::client::{Client, ENDPOINT_CHAT};
+use crate::error::{ApiError, Error};
+use crate::retry::retryable_api_status;
+use crate::transport::{Cancelled, until_cancelled};
+use crate::wire::{ChatRequest, StreamChunk, StreamOptions, decode_stream_chunk, encode_chat};
 use arbitrate_core::types::{Message, ToolCall, Usage};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -22,7 +28,6 @@ pub fn strip_reasoning_content(messages: &[Message]) -> Vec<Message> {
     prepared
 }
 
-#[cfg(test)]
 fn prepare_stream_request(request: &ChatRequest) -> ChatRequest {
     let mut prepared = request.clone();
     prepared.stream = true;
@@ -32,10 +37,140 @@ fn prepare_stream_request(request: &ChatRequest) -> ChatRequest {
     prepared
 }
 
+impl Client {
+    /// Open a chat stream and return its event receiver as soon as the server accepts it.
+    ///
+    /// Prepare prior turns with [`strip_reasoning_content`] before sending.
+    /// Keep the watch sender alive while consuming events. Sending true, dropping
+    /// that sender, or dropping the event receiver aborts the response body.
+    pub async fn chat_stream(
+        &self,
+        request: &ChatRequest,
+        mut cancel: watch::Receiver<bool>,
+    ) -> Result<mpsc::Receiver<StreamEvent>, Error> {
+        let body = encode_chat(&prepare_stream_request(request)).map_err(Error::Encode)?;
+        let response = self.open_chat_stream(&body, &mut cancel).await?;
+        let (sender, events) = mpsc::channel(16);
+        let client = self.clone();
+        tokio::spawn(async move {
+            tokio::select! {
+                biased;
+                _ = sender.closed() => {}
+                _ = client.pump_chat_stream(&body, response, &sender, &mut cancel) => {}
+            }
+        });
+        Ok(events)
+    }
+
+    async fn open_chat_stream(
+        &self,
+        body: &[u8],
+        cancel: &mut watch::Receiver<bool>,
+    ) -> Result<Response, Error> {
+        self.retry(cancel, || async {
+            let response = self
+                .send_json_once(ENDPOINT_CHAT, body.to_vec().into())
+                .await?;
+            let status = response.status();
+            if status.is_success() {
+                return Ok(response);
+            }
+            let status = status.as_u16();
+            let message = match response.bytes().await {
+                Ok(body) => ApiError::from_body(status, &body),
+                Err(error) if retryable_api_status(status) => {
+                    return Err(Error::Transport(error.without_url()));
+                }
+                Err(_) => ApiError::from_body(status, b"incomplete response body"),
+            };
+            Err(Error::Api(message))
+        })
+        .await
+    }
+
+    async fn pump_chat_stream(
+        &self,
+        request_body: &[u8],
+        response: Response,
+        sender: &mpsc::Sender<StreamEvent>,
+        cancel: &mut watch::Receiver<bool>,
+    ) -> Result<(), Cancelled> {
+        let first = read_stream_body(response, sender, cancel).await?;
+        let terminal = if first.can_reopen() {
+            self.wait_before_reopen(cancel)
+                .await
+                .map_err(|_| Cancelled)?;
+            match self.open_chat_stream(request_body, cancel).await {
+                Ok(response) => read_stream_body(response, sender, cancel)
+                    .await?
+                    .terminal(None),
+                Err(Error::Cancelled) => return Err(Cancelled),
+                Err(error) => first.terminal(Some(&error.to_string())),
+            }
+        } else {
+            first.terminal(None)
+        };
+        send_stream_event(sender, cancel, terminal).await
+    }
+}
+
+async fn send_stream_event(
+    sender: &mpsc::Sender<StreamEvent>,
+    cancel: &mut watch::Receiver<bool>,
+    event: StreamEvent,
+) -> Result<(), Cancelled> {
+    until_cancelled(cancel, sender.send(event))
+        .await?
+        .map_err(|_| Cancelled)
+}
+
+async fn read_stream_body(
+    mut response: Response,
+    sender: &mpsc::Sender<StreamEvent>,
+    cancel: &mut watch::Receiver<bool>,
+) -> Result<ReadOutcome, Cancelled> {
+    let mut decoder = SseDecoder::default();
+    let mut outcome = ReadOutcome::default();
+    loop {
+        match until_cancelled(cancel, response.chunk()).await? {
+            Ok(Some(chunk)) => {
+                let mut input = chunk.as_ref();
+                while !input.is_empty() {
+                    match decoder.next_frame(&mut input) {
+                        Ok(None) => break,
+                        Ok(Some(frame)) => {
+                            if outcome.dispatch_frame(frame, sender, cancel).await? {
+                                return Ok(outcome);
+                            }
+                        }
+                        Err(error) => {
+                            outcome.failure = Some(error);
+                            return Ok(outcome);
+                        }
+                    }
+                }
+            }
+            Ok(None) => {
+                match decoder.finish() {
+                    Ok(frame) => {
+                        outcome.dispatch_frame(frame, sender, cancel).await?;
+                    }
+                    Err(error) => outcome.failure = Some(error),
+                }
+                return Ok(outcome);
+            }
+            Err(error) => {
+                outcome.failure = Some(StreamFailure::Read(error.without_url().to_string()));
+                return Ok(outcome);
+            }
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::wire::{ChatRequest, EncodeError, StreamOptions, encode_chat};
+    use crate::wire::EncodeError;
     use arbitrate_core::types::{ImagePart, Message};
 
     #[test]
@@ -82,29 +217,24 @@ mod tests {
     }
 }
 
-#[cfg(test)]
 const MAX_LINE_BYTES: usize = 1024 * 1024;
 
-#[cfg(test)]
 #[derive(Default)]
 struct SseDecoder {
     partial: Vec<u8>,
 }
 
-#[cfg(test)]
 enum SseFrame {
     Skip,
     Done,
     Chunk(StreamChunk),
 }
 
-#[cfg(test)]
 enum StreamFailure {
     Decode(String),
     Read(String),
 }
 
-#[cfg(test)]
 impl SseDecoder {
     fn next_frame(&mut self, input: &mut &[u8]) -> Result<Option<SseFrame>, StreamFailure> {
         let newline = input.iter().position(|byte| *byte == b'\n');
@@ -151,7 +281,6 @@ impl SseDecoder {
     }
 }
 
-#[cfg(test)]
 #[derive(Default)]
 struct ReadOutcome {
     emitted_any: bool,
@@ -160,7 +289,6 @@ struct ReadOutcome {
     failure: Option<StreamFailure>,
 }
 
-#[cfg(test)]
 impl ReadOutcome {
     fn apply_chunk(&mut self, chunk: StreamChunk) -> Vec<StreamEvent> {
         if let Some(usage) = chunk.usage {
@@ -187,6 +315,29 @@ impl ReadOutcome {
         events
     }
 
+    fn can_reopen(&self) -> bool {
+        !self.emitted_any && (self.failure.is_some() || self.finish_reason.is_empty())
+    }
+
+    async fn dispatch_frame(
+        &mut self,
+        frame: SseFrame,
+        sender: &mpsc::Sender<StreamEvent>,
+        cancel: &mut watch::Receiver<bool>,
+    ) -> Result<bool, Cancelled> {
+        match frame {
+            SseFrame::Done => return Ok(true),
+            SseFrame::Skip => {}
+            SseFrame::Chunk(chunk) => {
+                for event in self.apply_chunk(chunk) {
+                    send_stream_event(sender, cancel, event).await?;
+                    self.emitted_any = true;
+                }
+            }
+        }
+        Ok(false)
+    }
+
     fn terminal(self, open_error: Option<&str>) -> StreamEvent {
         let finish_reason = match (open_error, self.failure) {
             (Some(message), _) => format!("stream_error:{}", truncate_message(message)),
@@ -205,7 +356,6 @@ impl ReadOutcome {
     }
 }
 
-#[cfg(test)]
 fn truncate_message(message: &str) -> std::borrow::Cow<'_, str> {
     const MAX_ERROR_BYTES: usize = 128;
     if message.len() <= MAX_ERROR_BYTES {

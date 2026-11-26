@@ -37,9 +37,13 @@ where
     }
 }
 
+pub(crate) fn retryable_api_status(status: u16) -> bool {
+    status == 429 || (500..=599).contains(&status)
+}
+
 fn retryable(error: &Error) -> bool {
     match error {
-        Error::Api(error) => error.status == 429 || (500..=599).contains(&error.status),
+        Error::Api(error) => retryable_api_status(error.status),
         Error::Transport(_) | Error::Decode(_) => true,
         _ => false,
     }

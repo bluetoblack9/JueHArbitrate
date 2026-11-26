@@ -33,6 +33,15 @@ pub enum Reply {
         first: String,
         release: Arc<(Mutex<bool>, Condvar)>,
     },
+    SseAfterRelease {
+        release: Arc<(Mutex<bool>, Condvar)>,
+        body: String,
+    },
+    SseUntilDisconnect {
+        chunks: Vec<String>,
+        body_sent: Option<std::sync::mpsc::Sender<()>>,
+        disconnected: std::sync::mpsc::Sender<()>,
+    },
     Hangup,
 }
 
@@ -195,6 +204,35 @@ fn handle(
             wait_for_release(&release);
             stream.write_all(b"0\r\n\r\n")?;
             stream.flush()
+        }
+        Reply::SseAfterRelease { release, body } => {
+            write_sse_headers(&mut stream)?;
+            wait_for_release(&release);
+            write_sse_chunk(&mut stream, &body)?;
+            stream.write_all(b"0\r\n\r\n")?;
+            stream.flush()
+        }
+        Reply::SseUntilDisconnect {
+            chunks,
+            body_sent,
+            disconnected,
+        } => {
+            write_sse_headers(&mut stream)?;
+            for chunk in chunks {
+                write_sse_chunk(&mut stream, &chunk)?;
+            }
+            if let Some(body_sent) = body_sent {
+                let _ = body_sent.send(());
+            }
+            let closed = match stream.read(&mut [0]) {
+                Ok(0) => true,
+                Ok(_) => false,
+                Err(error) => error.kind() == std::io::ErrorKind::ConnectionReset,
+            };
+            if closed {
+                let _ = disconnected.send(());
+            }
+            Ok(())
         }
     }
 }

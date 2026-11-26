@@ -1,5 +1,6 @@
 use std::future::Future;
 use std::pin::Pin;
+use std::sync::Arc;
 use std::time::Duration;
 
 use arbitrate_core::types::ChatResponse;
@@ -8,7 +9,7 @@ use tokio::sync::watch;
 
 use crate::error::{ApiError, Error};
 use crate::retry::retry_call;
-use crate::transport::{DEFAULT_REQUEST_TIMEOUT, Transport};
+use crate::transport::{DEFAULT_REQUEST_TIMEOUT, Transport, wait_retry};
 use crate::wire::{ChatRequest, decode_chat, encode_chat};
 
 pub const DEFAULT_BASE_URL: &str = "https://api.deepseek.com";
@@ -17,10 +18,11 @@ const JSON: &str = "application/json";
 
 type SleepFuture = Pin<Box<dyn Future<Output = ()> + Send>>;
 
+#[derive(Clone)]
 pub struct Client {
     api_key: String,
     transport: Transport,
-    sleeper: Box<dyn Fn(Duration) -> SleepFuture + Send + Sync>,
+    sleeper: Arc<dyn Fn(Duration) -> SleepFuture + Send + Sync>,
 }
 
 impl Client {
@@ -59,7 +61,7 @@ impl Client {
         Ok(Self {
             api_key,
             transport: Transport::new(client, base, timeout),
-            sleeper: Box::new(|delay| Box::pin(tokio::time::sleep(delay))),
+            sleeper: Arc::new(|delay| Box::pin(tokio::time::sleep(delay))),
         })
     }
 
@@ -69,7 +71,7 @@ impl Client {
         F: Fn(Duration) -> Fut + Send + Sync + 'static,
         Fut: Future<Output = ()> + Send + 'static,
     {
-        self.sleeper = Box::new(move |delay| Box::pin(sleeper(delay)));
+        self.sleeper = Arc::new(move |delay| Box::pin(sleeper(delay)));
         self
     }
 
@@ -93,7 +95,16 @@ impl Client {
         Op: FnMut() -> Attempt,
         Attempt: Future<Output = Result<T, Error>>,
     {
-        retry_call(cancel, &self.sleeper, op).await
+        retry_call(cancel, self.sleeper.as_ref(), op).await
+    }
+
+    pub(crate) async fn wait_before_reopen(
+        &self,
+        cancel: &mut watch::Receiver<bool>,
+    ) -> Result<(), Error> {
+        wait_retry(cancel, self.sleeper.as_ref())
+            .await
+            .map_err(|_| Error::Cancelled)
     }
 
     pub(crate) async fn send_json_once(

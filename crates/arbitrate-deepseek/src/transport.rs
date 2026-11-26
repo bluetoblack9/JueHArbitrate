@@ -9,6 +9,7 @@ use tokio::sync::watch;
 pub const DEFAULT_REQUEST_TIMEOUT: Duration = Duration::from_secs(300);
 const INVALID_ENDPOINT: &str = "invalid provider endpoint path";
 
+#[derive(Clone)]
 pub struct Transport {
     client: Client,
     base: Url,
